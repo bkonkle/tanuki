@@ -1,0 +1,47 @@
+# Lock files - should not be formatted
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Generated files and directories
+node_modules/
+dist/
+build/
+out/
+target/
+cjs/
+coverage/
+dts/
+esm/
+mjs/
+umd/
+.next/
+.nuxt/
+*.d.ts
+*.d.cts
+*.d.mts
+*.min.js
+*.map
+*.snap
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+
+# Coverage reports
+coverage/
+
+# Moon cache
+.moon/
+
+# Other generated files
+*.min.js
+*.min.css
+
+# Next
+.next/
+
+# Nuxt
+.nuxt/
+.output/

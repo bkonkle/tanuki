@@ -1,0 +1,49 @@
+services:
+  tanuki:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-ubuntu:25.10}
+        DEV_USER: ${DEV_USER:-brandon}
+    image: bkonkle/tanuki:latest
+    container_name: ${TANUKI_HOSTNAME:-tanuki}
+    restart: unless-stopped
+    volumes:
+      - apt-cache:/var/cache/apt/archives
+      - apt-lists:/var/lib/apt/lists
+      - ssh:/etc/ssh
+      - home:/home/${DEV_USER:-brandon}
+      - ${HOME}/.config/claude-code:/home/${DEV_USER:-brandon}/.config/claude-code:ro
+    environment:
+      TZ: ${TZ:-America/Denver}
+      DEV_USER: ${DEV_USER:-brandon}
+      CLAUDE_CODE_AUTH: ${CLAUDE_CODE_AUTH:-}
+    depends_on:
+      - tailscale-tanuki
+    network_mode: service:tailscale-tanuki
+
+  tailscale-tanuki:
+    image: tailscale/tailscale
+    container_name: ${TANUKI_HOSTNAME:-tanuki}-tailscale
+    hostname: ${TANUKI_HOSTNAME:-tanuki}
+    restart: unless-stopped
+    environment:
+      - TS_HOSTNAME=${TANUKI_HOSTNAME:-tanuki}
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - "TS_EXTRA_ARGS=--advertise-tags=tag:container --reset"
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=${TS_USERSPACE:-false}
+    volumes:
+      - tailscale-tanuki:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+
+volumes:
+  apt-cache:
+  apt-lists:
+  ssh:
+  home:
+  tailscale-tanuki:

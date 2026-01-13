@@ -1,0 +1,52 @@
+{
+  "go.buildFlags": ["-tags=integration"],
+  "go.testTags": "integration",
+  "go.lintOnSave": "package",
+  "go.lintFlags": ["--tests", "--build-tags=integration"],
+  "go.formatTool": "custom",
+  "go.lintTool": "golangci-lint-v2",
+  "go.formatFlags": ["fmt", "--stdin"],
+  "go.useLanguageServer": true,
+  "go.toolsManagement.checkForUpdates": "local",
+  "gopls": {
+    "ui.diagnostic.staticcheck": true,
+    "ui.completion.usePlaceholders": true,
+    "ui.semanticTokens": true,
+    "build.directoryFilters": [
+      "-node_modules",
+      "-target",
+      "-.moon",
+      "-build",
+      "-.git",
+      "-.cache",
+      "-.temp",
+      "-.tmp"
+    ]
+  },
+
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/node_modules/**": true,
+    "**/target/**": true,
+    "**/build/**": true,
+    "**/.cache/**": true,
+    "**/.temp/**": true,
+    "**/.tmp/**": true
+  },
+
+  "files.autoSave": "off",
+  "files.eol": "\n",
+
+  "go.installDependenciesWhenBuilding": false,
+
+  "diffEditor.maxComputationTime": 0,
+
+  "editor.formatOnSave": true,
+
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "editor.rulers": [100],
+  "editor.wordWrapColumn": 100
+}
