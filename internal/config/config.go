@@ -467,8 +467,8 @@ func DefaultConfig() *Config {
 		Version:  "1",
 		TasksDir: "tasks",
 		Image: ImageConfig{
-			Name: "bkonkle/tanuki",
-			Tag:  "latest",
+			Name: "node",
+			Tag:  "22",
 		},
 		Defaults: AgentDefaults{
 			AllowedTools: []string{

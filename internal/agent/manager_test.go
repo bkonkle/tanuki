@@ -101,6 +101,7 @@ type mockDockerManager struct {
 	createAgentContainerFn            func(name string, worktreePath string) (string, error)
 	createAgentContainerWithOptionsFn func(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error)
 	startContainerFn                  func(containerID string) error
+	setupContainerFn                  func(containerID string) error
 	stopContainerFn                   func(containerID string) error
 	removeContainerFn                 func(containerID string) error
 	containerExistsFn                 func(containerID string) bool
@@ -134,6 +135,13 @@ func (m *mockDockerManager) CreateAgentContainerWithOptions(name string, worktre
 func (m *mockDockerManager) StartContainer(containerID string) error {
 	if m.startContainerFn != nil {
 		return m.startContainerFn(containerID)
+	}
+	return nil
+}
+
+func (m *mockDockerManager) SetupContainer(containerID string) error {
+	if m.setupContainerFn != nil {
+		return m.setupContainerFn(containerID)
 	}
 	return nil
 }
@@ -175,7 +183,7 @@ func (m *mockDockerManager) InspectContainer(containerID string) (*ContainerInfo
 		Name:    "tanuki-test",
 		State:   "running",
 		Status:  "Up 5 minutes",
-		Image:   "bkonkle/tanuki:latest",
+		Image:   "node:22",
 		Created: "2026-01-13T10:00:00Z",
 	}, nil
 }

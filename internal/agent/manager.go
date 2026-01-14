@@ -123,6 +123,7 @@ type DockerManager interface {
 	CreateAgentContainer(name string, worktreePath string) (string, error)
 	CreateAgentContainerWithOptions(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error)
 	StartContainer(containerID string) error
+	SetupContainer(containerID string) error
 	StopContainer(containerID string) error
 	RemoveContainer(containerID string) error
 	ContainerExists(containerID string) bool
@@ -323,7 +324,15 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// 8. Create state entry
+	// 8. Setup container (install Claude Code CLI)
+	if err := m.docker.SetupContainer(containerID); err != nil {
+		_ = m.docker.StopContainer(containerID)   // Rollback
+		_ = m.docker.RemoveContainer(containerID) // Rollback
+		_ = m.git.RemoveWorktree(name, true)      // Rollback
+		return nil, fmt.Errorf("failed to setup container: %w", err)
+	}
+
+	// 9. Create state entry
 	agent := &Agent{
 		Name:          name,
 		ContainerID:   containerID,

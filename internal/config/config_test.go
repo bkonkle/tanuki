@@ -15,12 +15,12 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected version '1', got '%s'", cfg.Version)
 	}
 
-	if cfg.Image.Name != "bkonkle/tanuki" {
-		t.Errorf("expected image name 'bkonkle/tanuki', got '%s'", cfg.Image.Name)
+	if cfg.Image.Name != "node" {
+		t.Errorf("expected image name 'node', got '%s'", cfg.Image.Name)
 	}
 
-	if cfg.Image.Tag != "latest" {
-		t.Errorf("expected image tag 'latest', got '%s'", cfg.Image.Tag)
+	if cfg.Image.Tag != "22" {
+		t.Errorf("expected image tag '22', got '%s'", cfg.Image.Tag)
 	}
 
 	if cfg.Defaults.MaxTurns != 50 {

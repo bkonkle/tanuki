@@ -15,7 +15,7 @@ import (
 )
 
 // ErrDockerNotRunning indicates the Docker daemon is not running.
-var ErrDockerNotRunning = errors.New("docker daemon not running")
+var ErrDockerNotRunning = errors.New("docker daemon not running - is Docker Desktop started?")
 
 // ErrContainerNotFound indicates the container does not exist.
 var ErrContainerNotFound = errors.New("container not found")
@@ -90,10 +90,15 @@ func checkDockerRunning() error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if strings.Contains(stderr.String(), "Cannot connect") {
+		stderrStr := strings.TrimSpace(stderr.String())
+		// Check for common Docker not running indicators
+		if strings.Contains(stderrStr, "Cannot connect") ||
+			strings.Contains(stderrStr, "connection refused") ||
+			strings.Contains(stderrStr, "Is the docker daemon running") ||
+			stderrStr == "" {
 			return ErrDockerNotRunning
 		}
-		return fmt.Errorf("docker check failed: %s", stderr.String())
+		return fmt.Errorf("docker check failed: %s", stderrStr)
 	}
 	return nil
 }
@@ -235,6 +240,29 @@ func (m *Manager) StartContainer(containerID string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start container: %s", stderr.String())
 	}
+	return nil
+}
+
+// SetupContainer installs Claude Code CLI in the container.
+// This is called after starting a container to ensure the Claude Code CLI is available.
+// The setup is idempotent - it checks if claude is already installed before installing.
+func (m *Manager) SetupContainer(containerID string) error {
+	// Check if claude is already installed
+	checkCmd := exec.Command("docker", "exec", containerID, "which", "claude")
+	if checkCmd.Run() == nil {
+		// Claude is already installed, skip setup
+		return nil
+	}
+
+	// Install Claude Code CLI globally
+	installCmd := exec.Command("docker", "exec", containerID,
+		"npm", "install", "-g", "@anthropic-ai/claude-code")
+	var stderr bytes.Buffer
+	installCmd.Stderr = &stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Claude Code CLI: %s", stderr.String())
+	}
+
 	return nil
 }
 
