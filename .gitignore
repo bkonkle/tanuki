@@ -43,3 +43,10 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# Tanuki
+.tanuki/worktrees/
+.tanuki/state/
+
+# Claude
+.claude/settings.local.json
