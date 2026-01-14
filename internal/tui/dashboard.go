@@ -623,7 +623,7 @@ func (m *Model) getUniqueRoles() []string {
 
 // filteredTasks returns tasks matching current filters.
 func (m *Model) filteredTasks() []*TaskInfo {
-	var filtered []*TaskInfo
+	filtered := make([]*TaskInfo, 0, len(m.tasks))
 	for _, t := range m.tasks {
 		if m.statusFilter != "all" && t.Status != m.statusFilter {
 			continue

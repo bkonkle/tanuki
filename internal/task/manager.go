@@ -60,7 +60,7 @@ func (m *Manager) Scan() ([]*Task, error) {
 		return nil, fmt.Errorf("read tasks directory: %w", err)
 	}
 
-	var tasks []*Task
+	tasks := make([]*Task, 0, len(entries))
 	var parseErrors []error
 
 	for _, entry := range entries {
@@ -116,7 +116,7 @@ func (m *Manager) scanProjectDir(dir, projectName string) ([]*Task, []error) {
 		return nil, []error{fmt.Errorf("read project directory %s: %w", projectName, err)}
 	}
 
-	var tasks []*Task
+	tasks := make([]*Task, 0, len(entries))
 	var parseErrors []error
 
 	for _, entry := range entries {

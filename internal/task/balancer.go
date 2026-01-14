@@ -141,7 +141,7 @@ func (b *Balancer) ResetWorkload(agentName string) {
 // GetIdleAgents returns idle agents, optionally filtered by role.
 // If role is empty, returns all idle agents.
 func (b *Balancer) GetIdleAgents(agents []*Agent, role string) []*Agent {
-	var result []*Agent
+	result := make([]*Agent, 0, len(agents))
 
 	for _, ag := range agents {
 		if ag.Status != "idle" {

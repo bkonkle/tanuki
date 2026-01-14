@@ -186,7 +186,7 @@ func (e ValidationErrors) Error() string {
 	if len(e) == 0 {
 		return "no validation errors"
 	}
-	var msgs []string
+	msgs := make([]string, 0, len(e))
 	for _, err := range e {
 		msgs = append(msgs, err.Message)
 	}
