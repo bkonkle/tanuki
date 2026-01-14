@@ -1,38 +1,34 @@
-# Tanuki
+# 🦝 Tanuki 🐾
 
-**Multi-agent orchestration for code agents.** Spawn isolated Claude Code
-instances—each with their own git worktree and Docker container—to work on
-tasks in parallel without risking your host machine.
+**Multi-agent orchestration for code agents.** Spawn isolated Claude Code instances — each with
+their own git worktree and Docker container — to work on tasks in parallel without risking your host
+machine.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        tanuki CLI                           │
-├─────────────────────────────────────────────────────────────┤
-│  Agent Manager  │  Role System  │  Service Layer  │  State  │
-├─────────────────────────────────────────────────────────────┤
-│                   Claude Code Executor                      │
-├─────────────────────────────────────────────────────────────┤
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐                │
-│   │ Agent 1 │    │ Agent 2 │    │ Agent N │                │
-│   │─────────│    │─────────│    │─────────│                │
-│   │Container│    │Container│    │Container│                │
-│   │Worktree │    │Worktree │    │Worktree │                │
-│   │ Branch  │    │ Branch  │    │ Branch  │                │
-│   └─────────┘    └─────────┘    └─────────┘                │
-│         │              │              │                     │
-│         └──────────────┴──────────────┘                     │
-│                        │                                    │
-│              ┌─────────┴─────────┐                         │
-│              │  Shared Services  │                         │
-│              │  (Postgres/Redis) │                         │
-│              └───────────────────┘                         │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"flowchart":{"curve":"basis","nodeSpacing":45,"rankSpacing":40},"theme":"base"}}%%
+flowchart TB
+  classDef core fill:#f8fafc,stroke:#0f172a,color:#0f172a,stroke-width:1.5px;
+  classDef role fill:#eef2ff,stroke:#3730a3,color:#0f172a,stroke-width:1.5px;
+  classDef queue fill:#ecfeff,stroke:#0f766e,color:#0f172a,stroke-width:1.5px;
+  classDef work fill:#fff7ed,stroke:#9a3412,color:#0f172a,stroke-width:1.5px;
+
+  PD[Project Doc]:::core --> TK["Tickets<br/>role + workstream"]:::core
+  RC["Role Config<br/>prompts + concurrency"]:::role --> RQ["Role Queues"]:::queue
+  TK --> RQ
+
+  RQ --> WS["Workstreams<br/>(concurrency-limited)"]:::work
+  WS --> RL["Ralph Loop<br/>pick task -> check context -> execute -> artifacts"]:::core
+  RL --> WS
+
+  style PD fill:#e2e8f0,stroke:#334155,color:#0f172a,stroke-width:1.5px
+  style TK fill:#e2e8f0,stroke:#334155,color:#0f172a,stroke-width:1.5px
+  linkStyle default stroke:#475569,stroke-width:1.5px
 ```
 
 ## Why Tanuki?
 
-Running AI agents directly on your machine is risky—a hallucinating agent can
-delete files, corrupt your repo, or worse. Tanuki solves this by:
+Running AI agents directly on your machine is risky — a hallucinating agent can delete files,
+corrupt your repo, or worse. Tanuki solves this by:
 
 - **Isolating each agent** in its own Docker container and git worktree
 - **Letting agents work in parallel** on separate branches without conflicts
@@ -43,11 +39,12 @@ delete files, corrupt your repo, or worse. Tanuki solves this by:
 
 - **Isolated Agents** — Each agent gets a dedicated git branch and Docker container
 - **Parallel Execution** — Run multiple Claude Code instances simultaneously
-- **Role System** — Spawn specialized agents (backend, frontend, QA, docs, devops)
-- **Project Mode** — Define tasks in markdown, let Tanuki distribute work automatically
+- **Role System** — Define role-specific prompts and capabilities
+- **Projects + Tickets** — Project doc plus role-tagged tickets drive the workflow
+- **Workstreams** — Concurrency-limited workers per role that pick tasks in order
 - **Shared Services** — Run Postgres, Redis, and custom services accessible to all agents
+- **Ralph Loop Execution** — Single execution mode with completion signals and verification
 - **TUI Dashboard** — Interactive terminal interface for monitoring and control
-- **Three Execution Modes** — Fire-and-forget, streaming, and autonomous loop
 - **Git Integration** — Automatic worktree management, diff viewing, merge support
 
 ## Installation
@@ -89,8 +86,8 @@ tanuki init
 # Spawn an agent with a role
 tanuki spawn auth --role backend
 
-# Send a task
-tanuki run auth "Implement OAuth2 login with Google"
+# Send a task (Ralph loop by default)
+tanuki run auth "Implement OAuth2 login with Google. Say DONE when finished."
 
 # Monitor progress
 tanuki status auth
@@ -101,18 +98,30 @@ tanuki diff auth
 tanuki merge auth
 ```
 
-### Project Mode (Automated)
+### Project Workflow (Automated)
 
 ```bash
-# Initialize project tasks
+# Initialize project doc and tickets
 tanuki project init
 
-# Create task files in .tanuki/tasks/
-cat > .tanuki/tasks/TASK-001-auth.md << 'EOF'
+# Describe the project in .tanuki/project.md
+cat > .tanuki/project.md << 'EOF'
+# Project: User Authentication
+
+Goals:
+- OAuth2 login with Google
+- JWT-based session management
+
+Roles: backend, frontend, qa
+EOF
+
+# Create ticket files in .tanuki/tasks/
+cat > .tanuki/tasks/TICKET-001-auth.md << 'EOF'
 ---
-id: TASK-001
+id: TICKET-001
 title: Implement User Authentication
 role: backend
+workstream: auth
 priority: high
 completion:
   verify: "go test ./auth/..."
@@ -146,113 +155,82 @@ tanuki dashboard
 
 ### Task Execution
 
-| Command                                        | Description                     |
-| ---------------------------------------------- | ------------------------------- |
-| `tanuki run <agent> "<prompt>"`                | Send a task (async by default)  |
-| `tanuki run <agent> "<prompt>" --follow`       | Stream output in real-time      |
-| `tanuki run <agent> "<prompt>" --ralph`        | Loop until completion signal    |
-| `tanuki run <agent> "<prompt>" --ralph --verify "cmd"` | Loop with verification  |
-| `tanuki logs <agent>`                          | View agent's Claude Code output |
-| `tanuki logs <agent> --follow`                 | Stream logs in real-time        |
-| `tanuki attach <agent>`                        | Attach to running Claude session|
+| Command                                        | Description                                                 |
+| ---------------------------------------------- | ----------------------------------------------------------- |
+| `tanuki run <agent> "<prompt>"`                | Run in Ralph mode until completion signal or max iterations |
+| `tanuki run <agent> "<prompt>" --verify "cmd"` | Ralph loop with verification                                |
+| `tanuki logs <agent>`                          | View agent's Claude Code output                             |
+| `tanuki logs <agent> --follow`                 | Stream logs in real-time                                    |
+| `tanuki attach <agent>`                        | Attach to running Claude session                            |
 
 ### Git Operations
 
-| Command                       | Description                |
-| ----------------------------- | -------------------------- |
-| `tanuki diff <agent>`         | Show changes made by agent |
-| `tanuki diff <agent> --stat`  | Show diff statistics       |
-| `tanuki merge <agent>`        | Merge agent's branch       |
-| `tanuki merge <agent> --squash` | Squash merge             |
-| `tanuki merge <agent> --pr`   | Create GitHub PR instead   |
+| Command                         | Description                |
+| ------------------------------- | -------------------------- |
+| `tanuki diff <agent>`           | Show changes made by agent |
+| `tanuki diff <agent> --stat`    | Show diff statistics       |
+| `tanuki merge <agent>`          | Merge agent's branch       |
+| `tanuki merge <agent> --squash` | Squash merge               |
+| `tanuki merge <agent> --pr`     | Create GitHub PR instead   |
 
-### Project Mode
+### Projects
 
-| Command                  | Description                                |
-| ------------------------ | ------------------------------------------ |
-| `tanuki project init`    | Initialize task directory                  |
-| `tanuki project start`   | Scan tasks, spawn agents, begin distribution |
-| `tanuki project status`  | Show task and agent status                 |
-| `tanuki project stop`    | Stop all project agents                    |
-| `tanuki project resume`  | Resume a stopped project                   |
+| Command                 | Description                                 |
+| ----------------------- | ------------------------------------------- |
+| `tanuki project init`   | Initialize project doc and ticket directory |
+| `tanuki project start`  | Scan tickets, spawn workstreams, distribute |
+| `tanuki project status` | Show ticket and workstream status           |
+| `tanuki project stop`   | Stop all project workstreams                |
+| `tanuki project resume` | Resume a stopped project                    |
 
 ### Shared Services
 
-| Command                         | Description                         |
-| ------------------------------- | ----------------------------------- |
-| `tanuki service start [name]`   | Start all or specific service       |
-| `tanuki service stop [name]`    | Stop all or specific service        |
-| `tanuki service status`         | Show service health and ports       |
-| `tanuki service logs <name>`    | Stream service logs                 |
-| `tanuki service connect <name>` | Open interactive connection         |
+| Command                         | Description                   |
+| ------------------------------- | ----------------------------- |
+| `tanuki service start [name]`   | Start all or specific service |
+| `tanuki service stop [name]`    | Stop all or specific service  |
+| `tanuki service status`         | Show service health and ports |
+| `tanuki service logs <name>`    | Stream service logs           |
+| `tanuki service connect <name>` | Open interactive connection   |
 
 ### Role Management
 
-| Command                    | Description                           |
-| -------------------------- | ------------------------------------- |
-| `tanuki role list`         | List available roles                  |
-| `tanuki role show <role>`  | Show role configuration               |
-| `tanuki role init`         | Create .tanuki/roles/ for customization |
-| `tanuki role create <name>`| Generate a custom role template       |
+| Command                     | Description                             |
+| --------------------------- | --------------------------------------- |
+| `tanuki role list`          | List available roles                    |
+| `tanuki role show <role>`   | Show role configuration                 |
+| `tanuki role init`          | Create .tanuki/roles/ for customization |
+| `tanuki role create <name>` | Generate a custom role template         |
 
 ### Dashboard Command
 
-| Command             | Description                       |
-| ------------------- | --------------------------------- |
-| `tanuki dashboard`  | Open interactive TUI dashboard    |
+| Command            | Description                    |
+| ------------------ | ------------------------------ |
+| `tanuki dashboard` | Open interactive TUI dashboard |
 
-## Execution Modes
+## Projects
 
-### Default (Async)
+Projects define the shared context for a Tanuki run. The workflow is:
 
-Returns immediately, task runs in background:
+Projects -> Roles -> Workstreams -> Tasks
 
-```bash
-tanuki run auth "Implement OAuth2 login"
-# Task sent to auth
-# Check progress: tanuki logs auth --follow
-```
-
-### Follow Mode
-
-Streams output in real-time:
-
-```bash
-tanuki run auth "Add unit tests" --follow
-# Running task on auth (following output)...
-# [Claude Code output streams here]
-```
-
-### Ralph Mode
-
-Loops until completion signal or max iterations:
-
-```bash
-tanuki run auth "Fix all lint errors. Say DONE when clean." --ralph
-# Running auth in Ralph mode (max 30 iterations)...
-# === Ralph iteration 1/30 ===
-# [Claude output...]
-# === Completion signal detected: DONE ===
-```
-
-With verification command:
-
-```bash
-tanuki run auth "Get tests passing" --ralph --verify "npm test"
-```
+A project doc (for example `.tanuki/project.md`) captures goals, constraints, and shared context.
+Tickets (tasks) are Markdown files tagged with a role and an optional workstream. Roles must exist
+in the project's `tanuki.yaml`, which also defines role prompts and workstream concurrency.
 
 ## Roles
 
-Tanuki includes six built-in roles optimized for common development tasks:
+Tanuki includes six built-in roles optimized for common development tasks. Each role can set its own
+system prompt and concurrency in `tanuki.yaml`.
 
-| Role        | Use Case                              | Example                           |
-| ----------- | ------------------------------------- | --------------------------------- |
-| `backend`   | Server-side development, APIs, DBs    | `tanuki spawn api --role backend` |
-| `frontend`  | UI development, components, styling   | `tanuki spawn ui --role frontend` |
-| `qa`        | Testing, QA (can only write tests)    | `tanuki spawn tests --role qa`    |
-| `docs`      | Documentation, guides, READMEs        | `tanuki spawn docs --role docs`   |
-| `devops`    | Infrastructure, CI/CD, deployment     | `tanuki spawn infra --role devops`|
-| `fullstack` | End-to-end feature development        | `tanuki spawn feat --role fullstack` |
+| Role        | Use Case                            | Example                              |
+| ----------- | ----------------------------------- | ------------------------------------ |
+| `backend`   | Server-side development, APIs, DBs  | `tanuki spawn api --role backend`    |
+| `frontend`  | UI development, components, styling | `tanuki spawn ui --role frontend`    |
+| `qa`        | Testing, QA (can only write tests)  | `tanuki spawn tests --role qa`       |
+| `docs`      | Documentation, guides, READMEs      | `tanuki spawn docs --role docs`      |
+| `devops`    | Infrastructure, CI/CD, deployment   | `tanuki spawn infra --role devops`   |
+| `fullstack` | End-to-end feature development      | `tanuki spawn feat --role fullstack` |
 
 ### Custom Roles
 
@@ -264,22 +242,33 @@ tanuki role create my-custom-role
 vim .tanuki/roles/my-custom-role.yaml
 ```
 
-## Task Files
+## Workstreams
 
-Tasks are markdown files with YAML front matter in `.tanuki/tasks/`:
+Workstreams are per-role worker slots, each with its own container and worktree. Each workstream
+runs a Ralph loop that pulls the next ticket, checks context budget, executes until completion, and
+decides whether to take another ticket or emit artifacts and start a fresh Ralph instance for that
+workstream.
+
+Concurrency is configured per role. If a role has concurrency 3 and you have workstreams A, B, C, D,
+and E, Tanuki keeps a rolling window of three active workstreams (A/B/C, then B/C/D, then C/D/E).
+
+## Tasks
+
+Tasks (tickets) are Markdown files with YAML front matter in `.tanuki/tasks/`:
 
 ```markdown
 ---
-id: TASK-001
+id: TICKET-001
 title: Implement User Authentication
 role: backend
+workstream: auth
 priority: high
 status: pending
 depends_on: []
 
 completion:
   verify: "npm test -- --grep 'auth'"
-  signal: "AUTH_COMPLETE"
+  signal: 'AUTH_COMPLETE'
   max_iterations: 20
 
 tags:
@@ -299,15 +288,15 @@ Add OAuth2-based authentication to the API.
 
 ### Task States
 
-| State         | Description                              |
-| ------------- | ---------------------------------------- |
-| `pending`     | Not yet started, waiting for assignment  |
-| `assigned`    | Agent assigned but not yet started       |
-| `in_progress` | Agent actively working                   |
-| `review`      | Work done, needs human review            |
-| `complete`    | Verified and done                        |
-| `failed`      | Failed and needs attention               |
-| `blocked`     | Dependencies not satisfied               |
+| State         | Description                             |
+| ------------- | --------------------------------------- |
+| `pending`     | Not yet started, waiting for assignment |
+| `assigned`    | Agent assigned but not yet started      |
+| `in_progress` | Agent actively working                  |
+| `review`      | Work done, needs human review           |
+| `complete`    | Verified and done                       |
+| `failed`      | Failed and needs attention              |
+| `blocked`     | Dependencies not satisfied              |
 
 ### Completion Criteria
 
@@ -331,8 +320,7 @@ completion:
 
 ## Configuration
 
-Tanuki works without configuration using sensible defaults. Optionally create
-`tanuki.yaml`:
+Tanuki works without configuration using sensible defaults. Optionally create `tanuki.yaml`:
 
 ```yaml
 version: '1'
@@ -352,6 +340,22 @@ defaults:
   max_turns: 50
   model: claude-sonnet-4-20250514
 
+roles:
+  backend:
+    system_prompt: |
+      You are a backend engineer focused on APIs and data stores.
+      Prefer small, well-tested changes.
+    concurrency: 3
+  frontend:
+    system_prompt: |
+      You are a frontend engineer focused on UI and UX.
+      Keep changes accessible and responsive.
+    concurrency: 2
+  qa:
+    system_prompt: |
+      You are a QA engineer. You can only add or change tests.
+    concurrency: 1
+
 services:
   postgres:
     enabled: true
@@ -364,7 +368,7 @@ services:
     volumes:
       - tanuki-postgres:/var/lib/postgresql/data
     healthcheck:
-      command: ["pg_isready", "-U", "tanuki"]
+      command: ['pg_isready', '-U', 'tanuki']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -374,7 +378,7 @@ services:
     image: redis:7-alpine
     port: 6379
     healthcheck:
-      command: ["redis-cli", "ping"]
+      command: ['redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -382,8 +386,7 @@ services:
 
 ### Service Injection
 
-When services are running, agents automatically receive connection environment
-variables:
+When services are running, agents automatically receive connection environment variables:
 
 ```bash
 POSTGRES_HOST=tanuki-svc-postgres
@@ -402,19 +405,19 @@ REDIS_URL=tanuki-svc-redis:6379
 The TUI dashboard provides real-time monitoring with three panes:
 
 ```
-┌─ Agents [3] ──────────────┬─ Tasks [4] ────────────────────────┐
-│ ● backend-agent  [working]│ ✓ TASK-001  User Auth        backend│
-│   → TASK-002              │ ◐ TASK-002  API Refactor     backend│
-│ ○ frontend-agent [idle]   │ ○ TASK-003  Dashboard UI    frontend│
-│ ○ qa-agent       [stopped]│ ○ TASK-004  Integration       qa    │
-├───────────────────────────┴────────────────────────────────────┤
-│ Logs: backend-agent                              [f]ollow      │
-│────────────────────────────────────────────────────────────────│
-│ [10:15:32] Reading file src/api/routes.ts                      │
-│ [10:15:33] Analyzing current API structure...                  │
-│ [10:15:35] Found 12 endpoints to refactor                      │
-│ [10:15:40] Starting with /api/users endpoint                   │
-└────────────────────────────────────────────────────────────────┘
+┌─ Agents [3] ──────────────┬─ Tasks [4] ──────────────────────────┐
+│ ● backend-agent  [working]│ ✓ TASK-001  User Auth        backend │
+│   → TASK-002              │ ◐ TASK-002  API Refactor     backend │
+│ ○ frontend-agent [idle]   │ ○ TASK-003  Dashboard UI    frontend │
+│ ○ qa-agent       [stopped]│ ○ TASK-004  Integration       qa     │
+├───────────────────────────┴──────────────────────────────────────┤
+│ Logs: backend-agent                              [f]ollow        │
+│──────────────────────────────────────────────────────────────────│
+│ [10:15:32] Reading file src/api/routes.ts                        │
+│ [10:15:33] Analyzing current API structure...                    │
+│ [10:15:35] Found 12 endpoints to refactor                        │
+│ [10:15:40] Starting with /api/users endpoint                     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 **Keyboard shortcuts:**
@@ -436,8 +439,7 @@ The TUI dashboard provides real-time monitoring with three panes:
 
 ## Contributing
 
-Contributions are welcome! Please see [AGENTS.md](AGENTS.md) for development
-guidelines.
+Contributions are welcome! Please see [AGENTS.md](AGENTS.md) for development guidelines.
 
 ## License
 
