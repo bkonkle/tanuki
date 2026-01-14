@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bkonkle/tanuki/internal/config"
+	"github.com/bkonkle/tanuki/internal/docker"
 	"github.com/bkonkle/tanuki/internal/executor"
 )
 
@@ -96,16 +97,17 @@ func (m *mockGitManager) GetBranchName(name string) string {
 }
 
 type mockDockerManager struct {
-	ensureNetworkFn        func(name string) error
-	createAgentContainerFn func(name string, worktreePath string) (string, error)
-	startContainerFn       func(containerID string) error
-	stopContainerFn        func(containerID string) error
-	removeContainerFn      func(containerID string) error
-	containerExistsFn      func(containerID string) bool
-	containerRunningFn     func(containerID string) bool
-	inspectContainerFn     func(containerID string) (*ContainerInfo, error)
-	execWithOutputFn       func(containerID string, cmd []string) (string, error)
-	getResourceUsageFn     func(containerID string) (*ResourceUsage, error)
+	ensureNetworkFn                   func(name string) error
+	createAgentContainerFn            func(name string, worktreePath string) (string, error)
+	createAgentContainerWithOptionsFn func(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error)
+	startContainerFn                  func(containerID string) error
+	stopContainerFn                   func(containerID string) error
+	removeContainerFn                 func(containerID string) error
+	containerExistsFn                 func(containerID string) bool
+	containerRunningFn                func(containerID string) bool
+	inspectContainerFn                func(containerID string) (*ContainerInfo, error)
+	execWithOutputFn                  func(containerID string, cmd []string) (string, error)
+	getResourceUsageFn                func(containerID string) (*ResourceUsage, error)
 }
 
 func (m *mockDockerManager) EnsureNetwork(name string) error {
@@ -118,6 +120,13 @@ func (m *mockDockerManager) EnsureNetwork(name string) error {
 func (m *mockDockerManager) CreateAgentContainer(name string, worktreePath string) (string, error) {
 	if m.createAgentContainerFn != nil {
 		return m.createAgentContainerFn(name, worktreePath)
+	}
+	return "container-" + name, nil
+}
+
+func (m *mockDockerManager) CreateAgentContainerWithOptions(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error) {
+	if m.createAgentContainerWithOptionsFn != nil {
+		return m.createAgentContainerWithOptionsFn(name, worktreePath, opts)
 	}
 	return "container-" + name, nil
 }
@@ -466,7 +475,7 @@ func TestSpawn_ContainerFailure_Rollback(t *testing.T) {
 	}
 
 	docker := &mockDockerManager{
-		createAgentContainerFn: func(name string, worktreePath string) (string, error) {
+		createAgentContainerWithOptionsFn: func(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error) {
 			return "", errors.New("container creation failed")
 		},
 	}

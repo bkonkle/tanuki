@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bkonkle/tanuki/internal/service"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -40,6 +41,9 @@ type Config struct {
 
 	// Network contains Docker network settings
 	Network NetworkConfig `yaml:"network" mapstructure:"network"`
+
+	// Services contains shared service configurations (Postgres, Redis, etc.)
+	Services map[string]*service.Config `yaml:"services,omitempty" mapstructure:"services"`
 }
 
 // ImageConfig specifies which Docker image to use for agents.
@@ -234,27 +238,100 @@ func (l *Loader) LoadFromPath(path string) (*Config, error) {
 // Validate checks the configuration against the schema.
 // Returns ValidationErrors with detailed information about any issues.
 func (l *Loader) Validate(cfg *Config) error {
+	var errs ValidationErrors
+
+	// Validate struct tags
 	err := l.validator.Struct(cfg)
-	if err == nil {
+	if err != nil {
+		var validationErrs validator.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			for _, e := range validationErrs {
+				errs = append(errs, ValidationError{
+					Field:   e.Namespace(),
+					Tag:     e.Tag(),
+					Value:   e.Value(),
+					Message: formatValidationError(e),
+				})
+			}
+		} else {
+			return fmt.Errorf("validation error: %w", err)
+		}
+	}
+
+	// Validate service configurations
+	if err := l.validateServices(cfg); err != nil {
+		if svcErrs, ok := err.(ValidationErrors); ok {
+			errs = append(errs, svcErrs...)
+		} else {
+			return err
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
+// validateServices validates all service configurations.
+func (l *Loader) validateServices(cfg *Config) error {
+	if cfg.Services == nil {
 		return nil
 	}
 
-	var validationErrs validator.ValidationErrors
-	if !errors.As(err, &validationErrs) {
-		return fmt.Errorf("validation error: %w", err)
-	}
-
 	var errs ValidationErrors
-	for _, e := range validationErrs {
-		errs = append(errs, ValidationError{
-			Field:   e.Namespace(),
-			Tag:     e.Tag(),
-			Value:   e.Value(),
-			Message: formatValidationError(e),
-		})
+
+	for name, svcCfg := range cfg.Services {
+		if svcCfg == nil {
+			errs = append(errs, ValidationError{
+				Field:   fmt.Sprintf("services.%s", name),
+				Tag:     "required",
+				Value:   nil,
+				Message: fmt.Sprintf("service '%s' configuration is nil", name),
+			})
+			continue
+		}
+
+		// Validate that enabled services have required fields
+		if svcCfg.Enabled {
+			if svcCfg.Image == "" {
+				errs = append(errs, ValidationError{
+					Field:   fmt.Sprintf("services.%s.image", name),
+					Tag:     "required",
+					Value:   "",
+					Message: fmt.Sprintf("service '%s': image is required when enabled", name),
+				})
+			}
+
+			if svcCfg.Port <= 0 {
+				errs = append(errs, ValidationError{
+					Field:   fmt.Sprintf("services.%s.port", name),
+					Tag:     "gt",
+					Value:   svcCfg.Port,
+					Message: fmt.Sprintf("service '%s': port must be greater than 0", name),
+				})
+			}
+		}
+
+		// Validate healthcheck if present
+		if svcCfg.Healthcheck != nil {
+			if len(svcCfg.Healthcheck.Command) == 0 {
+				errs = append(errs, ValidationError{
+					Field:   fmt.Sprintf("services.%s.healthcheck.command", name),
+					Tag:     "required",
+					Value:   nil,
+					Message: fmt.Sprintf("service '%s': healthcheck command is required", name),
+				})
+			}
+		}
 	}
 
-	return errs
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
 }
 
 func (l *Loader) setDefaults() {
@@ -271,6 +348,7 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("git.branch_prefix", defaults.Git.BranchPrefix)
 	l.v.SetDefault("git.auto_push", defaults.Git.AutoPush)
 	l.v.SetDefault("network.name", defaults.Network.Name)
+	l.v.SetDefault("services", defaults.Services)
 }
 
 func (l *Loader) loadConfigFile(path string) error {
@@ -360,6 +438,10 @@ func DefaultConfig() *Config {
 		},
 		Network: NetworkConfig{
 			Name: "tanuki-net",
+		},
+		Services: map[string]*service.Config{
+			"postgres": service.DefaultPostgresConfig(),
+			"redis":    service.DefaultRedisConfig(),
 		},
 	}
 }

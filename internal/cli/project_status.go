@@ -1,0 +1,289 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"text/tabwriter"
+
+	"github.com/bkonkle/tanuki/internal/project"
+	"github.com/bkonkle/tanuki/internal/task"
+	"github.com/spf13/cobra"
+)
+
+var projectStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show project status",
+	Long:  `Displays all tasks, their status, and assigned agents.`,
+	RunE:  runProjectStatus,
+}
+
+func init() {
+	projectStatusCmd.Flags().BoolP("watch", "w", false, "Watch for changes (not yet implemented)")
+	projectCmd.AddCommand(projectStatusCmd)
+}
+
+func runProjectStatus(cmd *cobra.Command, args []string) error {
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+
+	// Check if task directory exists
+	taskDir := filepath.Join(projectRoot, ".tanuki", "tasks")
+	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+		fmt.Println("No tasks found.")
+		fmt.Println("Create tasks in .tanuki/tasks/ or run: tanuki project init")
+		return nil
+	}
+
+	// Create task manager with mock implementation for now
+	// Real implementation will be integrated later
+	taskMgr := newMockTaskManager(taskDir)
+
+	tasks, err := taskMgr.Scan()
+	if err != nil {
+		return fmt.Errorf("scan tasks: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		fmt.Println("No tasks found.")
+		fmt.Println("Create tasks in .tanuki/tasks/ or run: tanuki project init")
+		return nil
+	}
+
+	// Count by status
+	counts := make(map[task.Status]int)
+	for _, t := range tasks {
+		counts[t.Status]++
+	}
+
+	// Print summary
+	fmt.Printf("Project: %s\n", filepath.Base(projectRoot))
+	fmt.Printf("Tasks: %d total (%d pending, %d in progress, %d complete)\n",
+		len(tasks),
+		counts[task.StatusPending]+counts[task.StatusBlocked],
+		counts[task.StatusInProgress]+counts[task.StatusAssigned],
+		counts[task.StatusComplete],
+	)
+	fmt.Println()
+
+	// Print agents (placeholder for now - will integrate with agent manager later)
+	printProjectAgents()
+
+	// Print task table
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tTITLE\tROLE\tPRIORITY\tSTATUS\tASSIGNED")
+	fmt.Fprintln(w, "--\t-----\t----\t--------\t------\t--------")
+
+	// Sort by priority, then status
+	sortTasks(tasks)
+
+	for _, t := range tasks {
+		assigned := "-"
+		if t.AssignedTo != "" {
+			assigned = t.AssignedTo
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			t.ID,
+			truncate(t.Title, 30),
+			t.Role,
+			t.Priority,
+			t.Status,
+			assigned,
+		)
+	}
+
+	return w.Flush()
+}
+
+func printProjectAgents() {
+	// Placeholder - will integrate with agent manager later
+	// This function will list agents with roles assigned
+}
+
+func sortTasks(tasks []*task.Task) {
+	sort.Slice(tasks, func(i, j int) bool {
+		// Sort by priority first (lower order = higher priority)
+		pi := tasks[i].Priority.Order()
+		pj := tasks[j].Priority.Order()
+		if pi != pj {
+			return pi < pj
+		}
+		// Then by status (in_progress before pending)
+		si := statusOrder(tasks[i].Status)
+		sj := statusOrder(tasks[j].Status)
+		if si != sj {
+			return si < sj
+		}
+		// Then by ID
+		return tasks[i].ID < tasks[j].ID
+	})
+}
+
+func statusOrder(s task.Status) int {
+	switch s {
+	case task.StatusInProgress:
+		return 0
+	case task.StatusAssigned:
+		return 1
+	case task.StatusPending:
+		return 2
+	case task.StatusBlocked:
+		return 3
+	case task.StatusReview:
+		return 4
+	case task.StatusComplete:
+		return 5
+	case task.StatusFailed:
+		return 6
+	default:
+		return 7
+	}
+}
+
+// mockTaskManager is a temporary implementation until the real TaskManager is available.
+// It provides basic task scanning functionality for the status command.
+type mockTaskManager struct {
+	taskDir string
+	tasks   map[string]*task.Task
+}
+
+func newMockTaskManager(taskDir string) *mockTaskManager {
+	return &mockTaskManager{
+		taskDir: taskDir,
+		tasks:   make(map[string]*task.Task),
+	}
+}
+
+func (m *mockTaskManager) Scan() ([]*task.Task, error) {
+	entries, err := os.ReadDir(m.taskDir)
+	if err != nil {
+		return nil, fmt.Errorf("read tasks directory: %w", err)
+	}
+
+	var tasks []*task.Task
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+
+		path := filepath.Join(m.taskDir, entry.Name())
+		t, err := task.ParseFile(path)
+		if err != nil {
+			// Log warning but continue scanning
+			fmt.Fprintf(os.Stderr, "Warning: parse %s: %v\n", entry.Name(), err)
+			continue
+		}
+
+		m.tasks[t.ID] = t
+		tasks = append(tasks, t)
+	}
+
+	return tasks, nil
+}
+
+func (m *mockTaskManager) Get(id string) (*task.Task, error) {
+	t, ok := m.tasks[id]
+	if !ok {
+		return nil, fmt.Errorf("task %q not found", id)
+	}
+	return t, nil
+}
+
+func (m *mockTaskManager) GetByRole(role string) []*task.Task {
+	var tasks []*task.Task
+	for _, t := range m.tasks {
+		if t.Role == role {
+			tasks = append(tasks, t)
+		}
+	}
+	return tasks
+}
+
+func (m *mockTaskManager) GetByStatus(status task.Status) []*task.Task {
+	var tasks []*task.Task
+	for _, t := range m.tasks {
+		if t.Status == status {
+			tasks = append(tasks, t)
+		}
+	}
+	return tasks
+}
+
+func (m *mockTaskManager) GetPending() []*task.Task {
+	tasks := m.GetByStatus(task.StatusPending)
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+	})
+	return tasks
+}
+
+func (m *mockTaskManager) UpdateStatus(id string, status task.Status) error {
+	t, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+	t.Status = status
+	return task.WriteFile(t)
+}
+
+func (m *mockTaskManager) Assign(id string, agentName string) error {
+	t, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+	t.AssignedTo = agentName
+	t.Status = task.StatusAssigned
+	return task.WriteFile(t)
+}
+
+func (m *mockTaskManager) Unassign(id string) error {
+	t, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+	t.AssignedTo = ""
+	if t.Status == task.StatusAssigned || t.Status == task.StatusInProgress {
+		t.Status = task.StatusPending
+	}
+	return task.WriteFile(t)
+}
+
+func (m *mockTaskManager) IsBlocked(id string) (bool, error) {
+	t, ok := m.tasks[id]
+	if !ok {
+		return false, fmt.Errorf("task %q not found", id)
+	}
+	if len(t.DependsOn) == 0 {
+		return false, nil
+	}
+	for _, depID := range t.DependsOn {
+		dep, ok := m.tasks[depID]
+		if !ok {
+			return true, nil // Missing dependency = blocked
+		}
+		if dep.Status != task.StatusComplete {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *mockTaskManager) Stats() *project.TaskStats {
+	stats := &project.TaskStats{
+		ByStatus:   make(map[task.Status]int),
+		ByRole:     make(map[string]int),
+		ByPriority: make(map[task.Priority]int),
+	}
+
+	for _, t := range m.tasks {
+		stats.Total++
+		stats.ByStatus[t.Status]++
+		stats.ByRole[t.Role]++
+		stats.ByPriority[t.Priority]++
+	}
+
+	return stats
+}

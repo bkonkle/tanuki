@@ -1,0 +1,386 @@
+package task
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+)
+
+// Manager handles scanning, loading, querying, and updating tasks.
+// It maintains an in-memory cache for fast reads but always writes through
+// to disk for persistence.
+type Manager struct {
+	config   *Config
+	tasksDir string
+	tasks    map[string]*Task
+	mu       sync.RWMutex
+}
+
+// Config holds configuration for the TaskManager.
+type Config struct {
+	ProjectRoot string
+}
+
+// NewManager creates a new TaskManager.
+func NewManager(cfg *Config) *Manager {
+	return &Manager{
+		config:   cfg,
+		tasksDir: filepath.Join(cfg.ProjectRoot, ".tanuki", "tasks"),
+		tasks:    make(map[string]*Task),
+	}
+}
+
+// Scan loads all task files from .tanuki/tasks/.
+// Invalid task files are logged as warnings but don't stop the scan.
+func (m *Manager) Scan() ([]*Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Clear existing cache
+	m.tasks = make(map[string]*Task)
+
+	// Check if directory exists
+	if _, err := os.Stat(m.tasksDir); os.IsNotExist(err) {
+		return nil, nil // No tasks directory - not an error
+	}
+
+	entries, err := os.ReadDir(m.tasksDir)
+	if err != nil {
+		return nil, fmt.Errorf("read tasks directory: %w", err)
+	}
+
+	var tasks []*Task
+	var parseErrors []error
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+
+		path := filepath.Join(m.tasksDir, entry.Name())
+		task, err := ParseFile(path)
+		if err != nil {
+			// Log warning but continue scanning
+			parseErrors = append(parseErrors, fmt.Errorf("parse %s: %w", entry.Name(), err))
+			continue
+		}
+
+		m.tasks[task.ID] = task
+		tasks = append(tasks, task)
+	}
+
+	// Log any errors encountered
+	for _, err := range parseErrors {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	}
+
+	return tasks, nil
+}
+
+// Get returns a task by ID.
+func (m *Manager) Get(id string) (*Task, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return nil, fmt.Errorf("task %q not found", id)
+	}
+
+	return task, nil
+}
+
+// listOptions holds options for List().
+type listOptions struct {
+	sortByPriority bool
+}
+
+// ListOption is a functional option for List().
+type ListOption func(*listOptions)
+
+// SortByPriority returns a ListOption that sorts tasks by priority.
+func SortByPriority() ListOption {
+	return func(o *listOptions) {
+		o.sortByPriority = true
+	}
+}
+
+// List returns all tasks, optionally sorted.
+func (m *Manager) List(opts ...ListOption) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	tasks := make([]*Task, 0, len(m.tasks))
+	for _, t := range m.tasks {
+		tasks = append(tasks, t)
+	}
+
+	// Apply options
+	o := &listOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	if o.sortByPriority {
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+		})
+	}
+
+	return tasks
+}
+
+// GetByRole returns tasks for a specific role.
+func (m *Manager) GetByRole(role string) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.Role == role {
+			tasks = append(tasks, t)
+		}
+	}
+
+	return tasks
+}
+
+// GetByStatus returns tasks with a specific status.
+func (m *Manager) GetByStatus(status Status) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.Status == status {
+			tasks = append(tasks, t)
+		}
+	}
+
+	return tasks
+}
+
+// GetPending returns all pending tasks, sorted by priority.
+func (m *Manager) GetPending() []*Task {
+	tasks := m.GetByStatus(StatusPending)
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+	})
+	return tasks
+}
+
+// GetNextAvailable returns the highest priority pending task for a role.
+// It skips blocked tasks.
+func (m *Manager) GetNextAvailable(role string) (*Task, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var candidates []*Task
+	for _, t := range m.tasks {
+		if t.Role == role && t.Status == StatusPending {
+			candidates = append(candidates, t)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no pending tasks for role %q", role)
+	}
+
+	// Sort by priority
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].Priority.Order() < candidates[j].Priority.Order()
+	})
+
+	// Return first non-blocked task
+	for _, t := range candidates {
+		if blocked, _ := m.isBlockedInternal(t.ID); !blocked {
+			return t, nil
+		}
+	}
+
+	return nil, fmt.Errorf("all pending tasks for role %q are blocked", role)
+}
+
+// UpdateStatus changes task status and persists to file.
+func (m *Manager) UpdateStatus(id string, status Status) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+
+	task.Status = status
+
+	// Write back to file
+	if err := WriteFile(task); err != nil {
+		return fmt.Errorf("write task file: %w", err)
+	}
+
+	return nil
+}
+
+// Assign assigns a task to an agent.
+// The task must be in pending or blocked status.
+func (m *Manager) Assign(id string, agentName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+
+	if task.Status != StatusPending && task.Status != StatusBlocked {
+		return fmt.Errorf("task %q is not available (status: %s)", id, task.Status)
+	}
+
+	task.AssignedTo = agentName
+	task.Status = StatusAssigned
+
+	if err := WriteFile(task); err != nil {
+		return fmt.Errorf("write task file: %w", err)
+	}
+
+	return nil
+}
+
+// Unassign removes agent assignment from a task.
+// If the task is assigned or in_progress, it reverts to pending.
+func (m *Manager) Unassign(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+
+	task.AssignedTo = ""
+
+	// Don't change status if complete/failed
+	if task.Status == StatusAssigned || task.Status == StatusInProgress {
+		task.Status = StatusPending
+	}
+
+	if err := WriteFile(task); err != nil {
+		return fmt.Errorf("write task file: %w", err)
+	}
+
+	return nil
+}
+
+// IsBlocked checks if a task's dependencies are all complete.
+func (m *Manager) IsBlocked(id string) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.isBlockedInternal(id)
+}
+
+// isBlockedInternal checks if a task is blocked without acquiring a lock.
+// The caller must hold at least a read lock.
+func (m *Manager) isBlockedInternal(id string) (bool, error) {
+	task, ok := m.tasks[id]
+	if !ok {
+		return false, fmt.Errorf("task %q not found", id)
+	}
+
+	if len(task.DependsOn) == 0 {
+		return false, nil
+	}
+
+	for _, depID := range task.DependsOn {
+		dep, ok := m.tasks[depID]
+		if !ok {
+			// Dependency not found - treat as blocked
+			return true, nil
+		}
+		if dep.Status != StatusComplete {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetBlockingTasks returns the IDs of incomplete dependencies.
+func (m *Manager) GetBlockingTasks(id string) ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return nil, fmt.Errorf("task %q not found", id)
+	}
+
+	var blocking []string
+	for _, depID := range task.DependsOn {
+		dep, ok := m.tasks[depID]
+		if !ok || dep.Status != StatusComplete {
+			blocking = append(blocking, depID)
+		}
+	}
+
+	return blocking, nil
+}
+
+// UpdateBlockedStatus checks all tasks and updates blocked status.
+// Tasks with unmet dependencies are marked as blocked.
+// Tasks that were blocked but now have all dependencies complete are marked as pending.
+func (m *Manager) UpdateBlockedStatus() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, task := range m.tasks {
+		if task.Status == StatusPending || task.Status == StatusBlocked {
+			blocked, _ := m.isBlockedInternal(task.ID)
+			if blocked && task.Status != StatusBlocked {
+				task.Status = StatusBlocked
+				WriteFile(task)
+			} else if !blocked && task.Status == StatusBlocked {
+				task.Status = StatusPending
+				WriteFile(task)
+			}
+		}
+	}
+
+	return nil
+}
+
+// TaskStats holds statistics about tasks.
+type TaskStats struct {
+	Total      int
+	ByStatus   map[Status]int
+	ByRole     map[string]int
+	ByPriority map[Priority]int
+}
+
+// Stats returns task statistics.
+func (m *Manager) Stats() *TaskStats {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	stats := &TaskStats{
+		ByStatus:   make(map[Status]int),
+		ByRole:     make(map[string]int),
+		ByPriority: make(map[Priority]int),
+	}
+
+	for _, t := range m.tasks {
+		stats.Total++
+		stats.ByStatus[t.Status]++
+		stats.ByRole[t.Role]++
+		stats.ByPriority[t.Priority]++
+	}
+
+	return stats
+}
+
+// TasksDir returns the path to the tasks directory.
+func (m *Manager) TasksDir() string {
+	return m.tasksDir
+}

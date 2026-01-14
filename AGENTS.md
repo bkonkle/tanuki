@@ -1,22 +1,39 @@
-# Agent Rules
+# Contributing Guidelines
 
-- **Structure:** `bin/` (built binaries), `cmd/` (Go entry points), `internal/` (Go packages),
-  `scripts/`, `docs/`.
+Guidelines for contributing to Tanuki.
 
-## Git & Decision Guidelines
+## Project Structure
 
-- **Commit Template:** `<type>(<scope>): <summary>` `Why: <rationale>`
-- **Split PR:** Unrelated concerns, too large, mixed refactor/feature.
-- **Safety:** Redact secrets. Human approval for irreversible migrations.
+- `bin/` — Built binaries
+- `cmd/` — Go entry points
+- `internal/` — Go packages
+- `scripts/` — Build and utility scripts
 
-## Workflow & Verification
+## Git Guidelines
 
-1. **Plan:** Goal, Changes, Impact, Verification.
-2. **Edit:** Minimal diff.
-3. **Verify:** Unit tests.
+**Commit Template:** `<type>(<scope>): <summary>`
+
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
+
+**When to Split PRs:**
+
+- Unrelated concerns in one PR
+- PR is too large for effective review
+- Mixed refactoring with feature work
+
+**Safety:**
+
+- Redact secrets before committing
+- Human approval required for irreversible migrations
+
+## Workflow
+
+1. **Plan:** Goal, Changes, Impact, Verification
+2. **Edit:** Minimal diff, focused changes
+3. **Verify:** Run unit tests before submitting
 
 ## Critical Invariants
 
-- **Security:** No secrets committed.
-- **Docs:** Update related docs and comments with behavior changes.
-- **Git:** Reversible commits.
+- **Security:** No secrets committed
+- **Docs:** Update related docs and comments with behavior changes
+- **Git:** Keep commits reversible

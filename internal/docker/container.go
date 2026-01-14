@@ -157,8 +157,19 @@ func (m *Manager) CreateContainer(config ContainerConfig) (string, error) {
 	return containerID, nil
 }
 
+// AgentContainerOptions holds optional configuration for agent containers.
+type AgentContainerOptions struct {
+	// ServiceEnv contains environment variables for service connections
+	ServiceEnv map[string]string
+}
+
 // CreateAgentContainer creates a container configured for a Tanuki agent.
 func (m *Manager) CreateAgentContainer(name string, worktreePath string) (string, error) {
+	return m.CreateAgentContainerWithOptions(name, worktreePath, AgentContainerOptions{})
+}
+
+// CreateAgentContainerWithOptions creates an agent container with additional options.
+func (m *Manager) CreateAgentContainerWithOptions(name string, worktreePath string, opts AgentContainerOptions) (string, error) {
 	absWorktree, err := filepath.Abs(worktreePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
@@ -176,6 +187,18 @@ func (m *Manager) CreateAgentContainer(name string, worktreePath string) (string
 
 	// Build image reference
 	image := m.config.Image.Name + ":" + m.config.Image.Tag
+
+	// Build environment variables
+	env := map[string]string{
+		"TANUKI_AGENT": name,
+	}
+
+	// Merge service environment variables (service vars don't override existing)
+	for k, v := range opts.ServiceEnv {
+		if _, exists := env[k]; !exists {
+			env[k] = v
+		}
+	}
 
 	config := ContainerConfig{
 		Name:    fmt.Sprintf("tanuki-%s", name),
@@ -198,9 +221,7 @@ func (m *Manager) CreateAgentContainer(name string, worktreePath string) (string
 			Memory: m.config.Defaults.Resources.Memory,
 			CPUs:   m.config.Defaults.Resources.CPUs,
 		},
-		Env: map[string]string{
-			"TANUKI_AGENT": name,
-		},
+		Env: env,
 	}
 
 	return m.CreateContainer(config)

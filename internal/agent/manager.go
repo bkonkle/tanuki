@@ -121,6 +121,7 @@ type GitManager interface {
 type DockerManager interface {
 	EnsureNetwork(name string) error
 	CreateAgentContainer(name string, worktreePath string) (string, error)
+	CreateAgentContainerWithOptions(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error)
 	StartContainer(containerID string) error
 	StopContainer(containerID string) error
 	RemoveContainer(containerID string) error
@@ -129,6 +130,13 @@ type DockerManager interface {
 	InspectContainer(containerID string) (*ContainerInfo, error)
 	ExecWithOutput(containerID string, cmd []string) (string, error)
 	GetResourceUsage(containerID string) (*ResourceUsage, error)
+}
+
+// ServiceInjector provides service connection information for agent containers.
+type ServiceInjector interface {
+	BuildEnvironment() map[string]string
+	CheckServiceHealth() []string
+	GenerateDocumentation() string
 }
 
 // ResourceUsage is an alias for docker.ResourceUsage for convenience.
@@ -174,12 +182,13 @@ type RoleManager interface {
 // Manager handles agent lifecycle operations, coordinating Git worktrees,
 // Docker containers, persistent state, and Claude Code execution.
 type Manager struct {
-	config      *config.Config
-	git         GitManager
-	docker      DockerManager
-	state       StateManager
-	executor    ClaudeExecutor
-	roleManager RoleManager
+	config          *config.Config
+	git             GitManager
+	docker          DockerManager
+	state           StateManager
+	executor        ClaudeExecutor
+	roleManager     RoleManager
+	serviceInjector ServiceInjector
 }
 
 // NewManager creates a new agent manager.
@@ -206,12 +215,13 @@ func NewManager(cfg *config.Config, git GitManager, docker DockerManager, state 
 	}
 
 	return &Manager{
-		config:      cfg,
-		git:         git,
-		docker:      docker,
-		state:       state,
-		executor:    executor,
-		roleManager: nil, // Will be set via SetRoleManager
+		config:          cfg,
+		git:             git,
+		docker:          docker,
+		state:           state,
+		executor:        executor,
+		roleManager:     nil, // Will be set via SetRoleManager
+		serviceInjector: nil, // Will be set via SetServiceInjector
 	}, nil
 }
 
@@ -219,6 +229,12 @@ func NewManager(cfg *config.Config, git GitManager, docker DockerManager, state 
 // This is optional and allows role-based agent spawning.
 func (m *Manager) SetRoleManager(roleManager RoleManager) {
 	m.roleManager = roleManager
+}
+
+// SetServiceInjector sets the service injector for this agent manager.
+// This is optional and allows service connection injection into agent containers.
+func (m *Manager) SetServiceInjector(injector ServiceInjector) {
+	m.serviceInjector = injector
 }
 
 // Spawn creates a new agent with an isolated worktree and container.
@@ -279,21 +295,35 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		}
 	}
 
-	// 5. Create container (rollback worktree on failure)
-	containerID, err := m.docker.CreateAgentContainer(name, worktreePath)
+	// 5. Build service environment and check health
+	var serviceEnv map[string]string
+	if m.serviceInjector != nil {
+		serviceEnv = m.serviceInjector.BuildEnvironment()
+
+		// Log warnings for unhealthy services
+		for _, warning := range m.serviceInjector.CheckServiceHealth() {
+			fmt.Printf("Warning: %s\n", warning)
+		}
+	}
+
+	// 6. Create container with service injection (rollback worktree on failure)
+	containerOpts := docker.AgentContainerOptions{
+		ServiceEnv: serviceEnv,
+	}
+	containerID, err := m.docker.CreateAgentContainerWithOptions(name, worktreePath, containerOpts)
 	if err != nil {
 		m.git.RemoveWorktree(name, true) // Rollback
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
-	// 6. Start container (rollback both on failure)
+	// 7. Start container (rollback both on failure)
 	if err := m.docker.StartContainer(containerID); err != nil {
 		m.docker.RemoveContainer(containerID) // Rollback
 		m.git.RemoveWorktree(name, true)      // Rollback
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// 7. Create state entry
+	// 8. Create state entry
 	agent := &Agent{
 		Name:          name,
 		ContainerID:   containerID,
@@ -622,6 +652,14 @@ func (m *Manager) generateClaudeMD(worktreePath string, roleInfo *RoleInfo) erro
 		content.WriteString("Review these files for project context:\n\n")
 		for _, file := range roleInfo.ContextFiles {
 			content.WriteString(fmt.Sprintf("- %s\n", file))
+		}
+	}
+
+	// Add service documentation if available
+	if m.serviceInjector != nil {
+		serviceDocs := m.serviceInjector.GenerateDocumentation()
+		if serviceDocs != "" {
+			content.WriteString(serviceDocs)
 		}
 	}
 

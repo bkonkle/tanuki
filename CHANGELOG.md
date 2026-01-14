@@ -7,6 +7,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-13
+
+### Added
+
+- **Shared Services** (TANK-040, TANK-042, TANK-043)
+  - Service manager for Postgres, Redis, and custom services
+  - YAML configuration schema in `tanuki.yaml`
+  - Health monitoring with automatic restart on failure
+  - Volume persistence for service data
+
+- **Service CLI Commands** (TANK-044)
+  - `tanuki service start [name]` - Start all or specific service
+  - `tanuki service stop [name]` - Stop all or specific service
+  - `tanuki service status` - Show service health and ports
+  - `tanuki service logs <name>` - Stream service logs
+  - `tanuki service connect <name>` - Open interactive connection (psql, redis-cli)
+
+- **Agent Service Injection** (TANK-045)
+  - Automatic environment variable injection into agent containers
+  - Connection info for all running services (host, port, URL, credentials)
+  - Services accessible via Docker network
+
+- **TUI Dashboard** (TANK-041, TANK-046, TANK-047, TANK-048)
+  - BubbleTea-based interactive terminal interface
+  - Three-pane layout: agents, tasks, logs
+  - Real-time status updates and log streaming
+  - Keyboard navigation and quick actions
+  - `tanuki dashboard` command
+
+## [0.3.0] - 2026-01-13
+
+### Added
+
+- **Task File System** (TANK-030)
+  - Markdown files with YAML front matter in `.tanuki/tasks/`
+  - Task schema: id, title, role, priority, status, depends_on, completion
+  - Ralph-style completion criteria (verify commands, signals)
+
+- **Task Manager** (TANK-033)
+  - Scan, get, update, and assign tasks
+  - Role-based task filtering
+  - Status transitions and history tracking
+
+- **Dependency Resolver** (TANK-035)
+  - Topological sort for task ordering
+  - Cycle detection with clear error messages
+  - Blocked state for unmet dependencies
+
+- **Task Queue** (TANK-034)
+  - Priority-based queue implementation
+  - Role-aware task dequeuing
+  - Thread-safe operations
+
+- **Workload Balancer** (TANK-036)
+  - Intelligent agent assignment strategy
+  - Idle agent detection
+  - Even distribution across available agents
+
+- **Status Tracker** (TANK-037)
+  - Task lifecycle management
+  - Status transition validation
+  - Assignment history
+
+- **Project Commands** (TANK-031)
+  - `tanuki project init` - Initialize task directory
+  - `tanuki project start` - Scan tasks, spawn agents, begin distribution
+  - `tanuki project status` - Show task and agent progress
+  - `tanuki project stop` - Stop all project agents
+  - `tanuki project resume` - Resume a stopped project
+
+- **Task Completion Validation** (TANK-032)
+  - Ralph-style verification (commands and signals)
+  - Automatic task reassignment on completion
+  - Configurable max iterations
+
+- **Project Orchestrator** (TANK-038)
+  - Main control loop for automated task distribution
+  - Event-driven architecture
+  - Graceful shutdown and resume support
+
+## [0.2.0] - 2026-01-13
+
+### Added
+
+- **Role Configuration System** (TANK-020, TANK-023)
+  - YAML-based role definitions
+  - Role inheritance support
+  - Validation with helpful error messages
+
+- **Role-Based Tool Filtering** (TANK-024)
+  - Allow/deny lists for Claude tools
+  - Role-specific capabilities (e.g., QA can only write tests)
+
+- **Built-in Role Library** (TANK-026)
+  - `backend` - Server-side development, APIs, databases
+  - `frontend` - UI development, components, styling
+  - `qa` - Testing and quality assurance (restricted to tests)
+  - `docs` - Documentation and guides
+  - `devops` - Infrastructure, CI/CD, deployment
+  - `fullstack` - End-to-end feature development
+
+- **Spawn with Role** (TANK-021)
+  - `tanuki spawn <name> --role <role>` flag
+  - Automatic CLAUDE.md generation with role prompt
+  - Role validation on spawn
+
+- **Role Management Commands** (TANK-022)
+  - `tanuki role list` - List available roles
+  - `tanuki role show <role>` - Display role configuration
+  - `tanuki role init` - Create .tanuki/roles/ for customization
+  - `tanuki role create <name>` - Generate custom role template
+
+- **Context File Management** (TANK-025)
+  - Automatic context file injection per role
+  - Project-specific context in `.tanuki/context/`
+
+- **Role Template Generation** (TANK-027)
+  - Generate custom role YAML templates
+  - Inheritance from built-in roles
+
 ## [0.1.0] - 2026-01-13
 
 ### Added
@@ -68,5 +188,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser configuration for multi-platform releases
 - Multi-platform Docker image build scripts (amd64/arm64)
 
-[Unreleased]: https://github.com/bkonkle/tanuki/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/bkonkle/tanuki/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/bkonkle/tanuki/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/bkonkle/tanuki/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/bkonkle/tanuki/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/bkonkle/tanuki/releases/tag/v0.1.0

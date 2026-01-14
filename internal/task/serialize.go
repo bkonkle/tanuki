@@ -1,0 +1,93 @@
+package task
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
+// taskFrontMatter is a subset of Task fields that are written to the YAML front matter.
+// This excludes derived fields like FilePath and Content.
+type taskFrontMatter struct {
+	ID         string            `yaml:"id"`
+	Title      string            `yaml:"title"`
+	Role       string            `yaml:"role"`
+	Priority   Priority          `yaml:"priority,omitempty"`
+	Status     Status            `yaml:"status,omitempty"`
+	DependsOn  []string          `yaml:"depends_on,omitempty"`
+	AssignedTo string            `yaml:"assigned_to,omitempty"`
+	Completion *CompletionConfig `yaml:"completion,omitempty"`
+	Tags       []string          `yaml:"tags,omitempty"`
+}
+
+// WriteFile writes task back to file, preserving markdown content.
+func WriteFile(t *Task) error {
+	if t == nil {
+		return fmt.Errorf("task is nil")
+	}
+
+	if t.FilePath == "" {
+		return fmt.Errorf("task has no file path")
+	}
+
+	// Create front matter struct with only serializable fields
+	fm := taskFrontMatter{
+		ID:         t.ID,
+		Title:      t.Title,
+		Role:       t.Role,
+		Priority:   t.Priority,
+		Status:     t.Status,
+		DependsOn:  t.DependsOn,
+		AssignedTo: t.AssignedTo,
+		Completion: t.Completion,
+		Tags:       t.Tags,
+	}
+
+	// Marshal front matter with proper YAML formatting
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(fm); err != nil {
+		return fmt.Errorf("marshal front matter: %w", err)
+	}
+	encoder.Close()
+
+	// Combine with markdown content
+	content := fmt.Sprintf("---\n%s---\n\n%s\n", buf.String(), t.Content)
+
+	return os.WriteFile(t.FilePath, []byte(content), 0644)
+}
+
+// Serialize returns the task as a string in the markdown+YAML format.
+func Serialize(t *Task) (string, error) {
+	if t == nil {
+		return "", fmt.Errorf("task is nil")
+	}
+
+	// Create front matter struct with only serializable fields
+	fm := taskFrontMatter{
+		ID:         t.ID,
+		Title:      t.Title,
+		Role:       t.Role,
+		Priority:   t.Priority,
+		Status:     t.Status,
+		DependsOn:  t.DependsOn,
+		AssignedTo: t.AssignedTo,
+		Completion: t.Completion,
+		Tags:       t.Tags,
+	}
+
+	// Marshal front matter with proper YAML formatting
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(fm); err != nil {
+		return "", fmt.Errorf("marshal front matter: %w", err)
+	}
+	encoder.Close()
+
+	// Combine with markdown content
+	return fmt.Sprintf("---\n%s---\n\n%s\n", buf.String(), t.Content), nil
+}
