@@ -12,15 +12,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	statusShowWorkstreams bool
+)
+
 var projectStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show project status",
-	Long:  `Displays all tasks, their status, and assigned agents.`,
+	Long:  `Displays all tasks, their status, workstreams, and assigned agents.`,
 	RunE:  runProjectStatus,
 }
 
 func init() {
 	projectStatusCmd.Flags().BoolP("watch", "w", false, "Watch for changes (not yet implemented)")
+	projectStatusCmd.Flags().BoolVarP(&statusShowWorkstreams, "workstreams", "W", false, "Show workstream details")
 	projectCmd.AddCommand(projectStatusCmd)
 }
 
@@ -59,6 +64,9 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 		counts[t.Status]++
 	}
 
+	// Collect workstream info
+	workstreams := collectWorkstreams(tasks)
+
 	// Print summary
 	fmt.Printf("Project: %s\n", filepath.Base(projectRoot))
 	fmt.Printf("Tasks: %d total (%d pending, %d in progress, %d complete)\n",
@@ -67,15 +75,21 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 		counts[task.StatusInProgress]+counts[task.StatusAssigned],
 		counts[task.StatusComplete],
 	)
+	fmt.Printf("Workstreams: %d\n", len(workstreams))
 	fmt.Println()
 
 	// Print agents (placeholder for now - will integrate with agent manager later)
 	printProjectAgents()
 
+	// Print workstream summary if requested
+	if statusShowWorkstreams {
+		printWorkstreamSummary(workstreams, tasks)
+	}
+
 	// Print task table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tTITLE\tROLE\tPRIORITY\tSTATUS\tASSIGNED")
-	fmt.Fprintln(w, "--\t-----\t----\t--------\t------\t--------")
+	fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+	fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
 
 	// Sort by priority, then status
 	sortTasks(tasks)
@@ -85,10 +99,15 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 		if t.AssignedTo != "" {
 			assigned = t.AssignedTo
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+		ws := t.GetWorkstream()
+		if ws == t.ID {
+			ws = "-" // Don't show if same as task ID
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			t.ID,
 			truncate(t.Title, 30),
 			t.Role,
+			truncate(ws, 15),
 			t.Priority,
 			t.Status,
 			assigned,
@@ -96,6 +115,82 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return w.Flush()
+}
+
+// workstreamInfo holds summary info for a workstream.
+type workstreamInfo struct {
+	Name      string
+	Role      string
+	Total     int
+	Complete  int
+	Pending   int
+	InProgress int
+}
+
+func collectWorkstreams(tasks []*task.Task) map[string]*workstreamInfo {
+	workstreams := make(map[string]*workstreamInfo)
+
+	for _, t := range tasks {
+		ws := t.GetWorkstream()
+		info, exists := workstreams[ws]
+		if !exists {
+			info = &workstreamInfo{
+				Name: ws,
+				Role: t.Role,
+			}
+			workstreams[ws] = info
+		}
+
+		info.Total++
+		switch t.Status {
+		case task.StatusComplete:
+			info.Complete++
+		case task.StatusPending, task.StatusBlocked:
+			info.Pending++
+		case task.StatusInProgress, task.StatusAssigned:
+			info.InProgress++
+		}
+	}
+
+	return workstreams
+}
+
+func printWorkstreamSummary(workstreams map[string]*workstreamInfo, tasks []*task.Task) {
+	if len(workstreams) == 0 {
+		return
+	}
+
+	fmt.Println("Workstreams:")
+
+	// Sort by role, then name
+	var wsList []*workstreamInfo
+	for _, ws := range workstreams {
+		wsList = append(wsList, ws)
+	}
+	sort.Slice(wsList, func(i, j int) bool {
+		if wsList[i].Role != wsList[j].Role {
+			return wsList[i].Role < wsList[j].Role
+		}
+		return wsList[i].Name < wsList[j].Name
+	})
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  WORKSTREAM\tROLE\tTOTAL\tCOMPLETE\tIN PROGRESS\tPENDING")
+	fmt.Fprintln(w, "  ----------\t----\t-----\t--------\t-----------\t-------")
+
+	for _, ws := range wsList {
+		fmt.Fprintf(w, "  %s\t%s\t%d\t%d\t%d\t%d\n",
+			truncate(ws.Name, 20),
+			ws.Role,
+			ws.Total,
+			ws.Complete,
+			ws.InProgress,
+			ws.Pending,
+		)
+	}
+
+	w.Flush()
+	fmt.Println()
 }
 
 func printProjectAgents() {
@@ -116,6 +211,12 @@ func sortTasks(tasks []*task.Task) {
 		sj := statusOrder(tasks[j].Status)
 		if si != sj {
 			return si < sj
+		}
+		// Then by workstream
+		wi := tasks[i].GetWorkstream()
+		wj := tasks[j].GetWorkstream()
+		if wi != wj {
+			return wi < wj
 		}
 		// Then by ID
 		return tasks[i].ID < tasks[j].ID

@@ -36,6 +36,9 @@ type Config struct {
 	// Defaults contains default settings applied to all agents
 	Defaults AgentDefaults `yaml:"defaults" mapstructure:"defaults"`
 
+	// Roles contains role-specific configuration overrides
+	Roles map[string]*RoleConfig `yaml:"roles,omitempty" mapstructure:"roles"`
+
 	// Git contains Git-related settings for branch management
 	Git GitConfig `yaml:"git" mapstructure:"git"`
 
@@ -44,6 +47,42 @@ type Config struct {
 
 	// Services contains shared service configurations (Postgres, Redis, etc.)
 	Services map[string]*service.Config `yaml:"services,omitempty" mapstructure:"services"`
+}
+
+// RoleConfig contains configuration for a specific role.
+// These settings override AgentDefaults and are merged with role definition files.
+type RoleConfig struct {
+	// Concurrency is the maximum number of concurrent workstreams for this role
+	Concurrency int `yaml:"concurrency,omitempty" mapstructure:"concurrency" validate:"omitempty,gte=1,lte=10"`
+
+	// SystemPrompt is the role-specific system prompt
+	SystemPrompt string `yaml:"system_prompt,omitempty" mapstructure:"system_prompt"`
+
+	// SystemPromptFile is the path to a file containing the system prompt
+	SystemPromptFile string `yaml:"system_prompt_file,omitempty" mapstructure:"system_prompt_file"`
+
+	// AllowedTools overrides the default allowed tools for this role
+	AllowedTools []string `yaml:"allowed_tools,omitempty" mapstructure:"allowed_tools"`
+
+	// DisallowedTools lists tools explicitly denied for this role
+	DisallowedTools []string `yaml:"disallowed_tools,omitempty" mapstructure:"disallowed_tools"`
+
+	// Model overrides the default Claude model for this role
+	Model string `yaml:"model,omitempty" mapstructure:"model"`
+
+	// MaxTurns overrides the default maximum conversation turns
+	MaxTurns int `yaml:"max_turns,omitempty" mapstructure:"max_turns" validate:"omitempty,gte=1,lte=1000"`
+
+	// Resources overrides the default container resource limits
+	Resources *ResourceConfig `yaml:"resources,omitempty" mapstructure:"resources"`
+}
+
+// GetConcurrency returns the concurrency setting with a default of 1.
+func (r *RoleConfig) GetConcurrency() int {
+	if r == nil || r.Concurrency <= 0 {
+		return 1
+	}
+	return r.Concurrency
 }
 
 // ImageConfig specifies which Docker image to use for agents.
@@ -79,11 +118,23 @@ type AgentDefaults struct {
 	// MaxTurns is the maximum number of conversation turns before stopping
 	MaxTurns int `yaml:"max_turns" mapstructure:"max_turns" validate:"gte=1,lte=1000"`
 
+	// MaxWorkstreamTurns is the max turns before context reset in a workstream
+	// When exceeded, the workstream session is saved and a fresh instance starts
+	MaxWorkstreamTurns int `yaml:"max_workstream_turns,omitempty" mapstructure:"max_workstream_turns" validate:"omitempty,gte=50,lte=1000"`
+
 	// Model is the Claude model to use (e.g., "claude-sonnet-4-5-20250514")
 	Model string `yaml:"model" mapstructure:"model" validate:"required"`
 
 	// Resources specifies container resource limits
 	Resources ResourceConfig `yaml:"resources" mapstructure:"resources"`
+}
+
+// GetMaxWorkstreamTurns returns the max workstream turns with default fallback.
+func (a *AgentDefaults) GetMaxWorkstreamTurns() int {
+	if a.MaxWorkstreamTurns <= 0 {
+		return 200 // Default
+	}
+	return a.MaxWorkstreamTurns
 }
 
 // ResourceConfig specifies resource limits for agent containers.
@@ -490,4 +541,20 @@ func GlobalConfigPath() string {
 // or an empty string if no project config is found.
 func FindProjectConfig() string {
 	return NewLoader().findProjectConfig()
+}
+
+// GetRoleConfig returns the configuration for a specific role.
+// Returns nil if no role-specific config is defined.
+func (c *Config) GetRoleConfig(roleName string) *RoleConfig {
+	if c.Roles == nil {
+		return nil
+	}
+	return c.Roles[roleName]
+}
+
+// GetRoleConcurrency returns the concurrency for a specific role.
+// Returns 1 (default) if the role has no specific config.
+func (c *Config) GetRoleConcurrency(roleName string) int {
+	rc := c.GetRoleConfig(roleName)
+	return rc.GetConcurrency()
 }

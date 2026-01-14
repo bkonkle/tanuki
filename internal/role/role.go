@@ -21,6 +21,9 @@ type Role struct {
 	// Builtin indicates if this is a built-in role (not from a file)
 	Builtin bool `yaml:"builtin,omitempty"`
 
+	// Concurrency is the maximum number of concurrent workstreams for this role
+	Concurrency int `yaml:"concurrency,omitempty"`
+
 	// SystemPrompt is the custom prompt appended to Claude Code's default prompt
 	SystemPrompt string `yaml:"system_prompt"`
 
@@ -48,6 +51,14 @@ type Role struct {
 
 	// MaxTurns overrides the default maximum conversation turns
 	MaxTurns int `yaml:"max_turns" validate:"omitempty,gte=1,lte=1000"`
+}
+
+// GetConcurrency returns the concurrency for this role with a default of 1.
+func (r *Role) GetConcurrency() int {
+	if r.Concurrency <= 0 {
+		return 1
+	}
+	return r.Concurrency
 }
 
 // Validate checks if the role configuration is valid.

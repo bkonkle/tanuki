@@ -18,8 +18,6 @@ import (
 )
 
 var (
-	runFollow   bool
-	runRalph    bool
 	runMaxIter  int
 	runSignal   string
 	runVerify   string
@@ -31,29 +29,26 @@ var (
 var runCmd = &cobra.Command{
 	Use:   "run <agent> <prompt>",
 	Short: "Send a task to an agent",
-	Long: `Send a task to an agent in one of three modes:
+	Long: `Send a task to an agent using Ralph mode (autonomous loop until complete).
 
-  Default:   Fire-and-forget, returns immediately
-  --follow:  Stream output until complete
-  --ralph:   Loop until completion signal (autonomous mode)
+The agent will iterate until completion criteria are met:
+- Completion signal detected in output (default: "DONE")
+- Verify command exits with code 0 (if specified)
+- Max iterations reached
 
 Examples:
   tanuki run auth "Implement OAuth2 login"
-  tanuki run auth "Add unit tests" --follow
-  tanuki run auth "Fix all lint errors. Say DONE when clean." --ralph
-  tanuki run auth "Increase coverage to 80%" --ralph --verify "npm test -- --coverage"`,
+  tanuki run auth "Fix all lint errors. Say DONE when clean."
+  tanuki run auth "Increase coverage to 80%" --verify "npm test -- --coverage"
+  tanuki run auth "Add feature" --signal "COMPLETE" --max-iter 50`,
 	Args: cobra.ExactArgs(2),
 	RunE: runRun,
 }
 
 func init() {
-	// Execution mode flags
-	runCmd.Flags().BoolVarP(&runFollow, "follow", "f", false, "Follow output in real-time")
-	runCmd.Flags().BoolVar(&runRalph, "ralph", false, "Run in Ralph mode (loop until done)")
-
-	// Ralph mode options
-	runCmd.Flags().IntVar(&runMaxIter, "max-iter", 30, "Max iterations in Ralph mode")
-	runCmd.Flags().StringVar(&runSignal, "signal", "DONE", "Completion signal for Ralph mode")
+	// Ralph mode options (now the default and only mode)
+	runCmd.Flags().IntVar(&runMaxIter, "max-iter", 30, "Max iterations before stopping")
+	runCmd.Flags().StringVar(&runSignal, "signal", "DONE", "Completion signal to detect in output")
 	runCmd.Flags().StringVar(&runVerify, "verify", "", "Command to verify completion (e.g., 'npm test')")
 
 	// Execution options
@@ -115,44 +110,18 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Build run options
 	opts := agent.RunOptions{
-		Follow:          runFollow,
+		Follow:          true, // Always follow in Ralph mode
 		MaxTurns:        runMaxTurns,
 		AllowedTools:    runAllow,
 		DisallowedTools: runDeny,
 	}
 
-	// Handle Ralph mode
-	if runRalph {
-		return runRalphMode(agentMgr, agentName, prompt, opts)
-	}
-
-	// Handle follow mode
-	if runFollow {
-		fmt.Printf("Running task on %s (following output)...\n\n", agentName)
-		return agentMgr.Run(agentName, prompt, opts)
-	}
-
-	// Default: async mode - start in background
-	fmt.Printf("Task sent to %s\n", agentName)
-	fmt.Printf("  Prompt: %s\n", truncate(prompt, 60))
-	fmt.Println()
-	fmt.Printf("Check progress:\n")
-	fmt.Printf("  tanuki logs %s --follow\n", agentName)
-	fmt.Printf("  tanuki status %s\n", agentName)
-
-	// Start task in background goroutine
-	go func() {
-		agentMgr.Run(agentName, prompt, opts)
-	}()
-
-	// Give goroutine a moment to start
-	time.Sleep(100 * time.Millisecond)
-
-	return nil
+	// Always use Ralph mode
+	return runRalphMode(agentMgr, agentName, prompt, opts)
 }
 
 func runRalphMode(agentMgr *agent.Manager, agentName string, prompt string, opts agent.RunOptions) error {
-	fmt.Printf("Running %s in Ralph mode (max %d iterations)...\n", agentName, runMaxIter)
+	fmt.Printf("Running %s (max %d iterations)...\n", agentName, runMaxIter)
 	fmt.Printf("Completion signal: %q\n", runSignal)
 	if runVerify != "" {
 		fmt.Printf("Verify command: %s\n", runVerify)
@@ -162,7 +131,7 @@ func runRalphMode(agentMgr *agent.Manager, agentName string, prompt string, opts
 	startTime := time.Now()
 
 	for i := 1; i <= runMaxIter; i++ {
-		fmt.Printf("=== Ralph iteration %d/%d ===\n", i, runMaxIter)
+		fmt.Printf("=== Iteration %d/%d ===\n", i, runMaxIter)
 
 		// Create a pipe to capture output
 		pr, pw, err := os.Pipe()

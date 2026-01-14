@@ -5,15 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bkonkle/tanuki/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
 // Manager handles role operations.
 type Manager interface {
-	// List returns all available roles (builtin + project)
+	// List returns all available roles (builtin + project + config)
 	List() ([]*Role, error)
 
-	// Get retrieves a role by name. Project roles override builtin roles.
+	// Get retrieves a role by name. Config overrides project roles, which override builtin roles.
 	Get(name string) (*Role, error)
 
 	// LoadFromFile loads a role from a YAML file
@@ -33,6 +34,7 @@ type Manager interface {
 type FileManager struct {
 	projectRoot string
 	rolesDir    string
+	config      *config.Config
 }
 
 // NewManager creates a new role manager.
@@ -43,8 +45,22 @@ func NewManager(projectRoot string) *FileManager {
 	}
 }
 
-// List returns all available roles (builtin + project).
-// Project roles with the same name override builtin roles.
+// NewManagerWithConfig creates a new role manager with config for merging.
+func NewManagerWithConfig(projectRoot string, cfg *config.Config) *FileManager {
+	return &FileManager{
+		projectRoot: projectRoot,
+		rolesDir:    filepath.Join(projectRoot, ".tanuki", "roles"),
+		config:      cfg,
+	}
+}
+
+// SetConfig sets the config for role merging.
+func (m *FileManager) SetConfig(cfg *config.Config) {
+	m.config = cfg
+}
+
+// List returns all available roles (builtin + project + config).
+// Precedence: config > project roles > builtin roles.
 func (m *FileManager) List() ([]*Role, error) {
 	roles := make(map[string]*Role)
 
@@ -76,6 +92,25 @@ func (m *FileManager) List() ([]*Role, error) {
 		}
 	}
 
+	// Apply config overrides if present
+	for name, role := range roles {
+		m.applyConfigOverrides(role)
+		roles[name] = role
+	}
+
+	// Add any roles defined only in config (not in files)
+	if m.config != nil && m.config.Roles != nil {
+		for name, roleCfg := range m.config.Roles {
+			if _, exists := roles[name]; !exists {
+				// Create a new role from config only
+				role := m.roleFromConfig(name, roleCfg)
+				if role != nil {
+					roles[name] = role
+				}
+			}
+		}
+	}
+
 	// Convert map to slice
 	result := make([]*Role, 0, len(roles))
 	for _, role := range roles {
@@ -85,22 +120,123 @@ func (m *FileManager) List() ([]*Role, error) {
 	return result, nil
 }
 
-// Get retrieves a role by name. Project roles override builtin roles.
+// Get retrieves a role by name. Config overrides project roles, which override builtin roles.
 func (m *FileManager) Get(name string) (*Role, error) {
+	var role *Role
+
 	// Check project roles first
 	projectRolePath := filepath.Join(m.rolesDir, name+".yaml")
 	if _, err := os.Stat(projectRolePath); err == nil {
-		return m.LoadFromFile(projectRolePath)
+		r, err := m.LoadFromFile(projectRolePath)
+		if err != nil {
+			return nil, err
+		}
+		role = r
 	}
 
-	// Fall back to builtin roles
-	for _, role := range BuiltinRoles() {
-		if role.Name == name {
-			return role, nil
+	// Fall back to builtin roles if no project role found
+	if role == nil {
+		for _, r := range BuiltinRoles() {
+			if r.Name == name {
+				// Copy the builtin role to avoid modifying the original
+				roleCopy := *r
+				role = &roleCopy
+				break
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("role %q not found", name)
+	// Check if role exists only in config
+	if role == nil && m.config != nil && m.config.Roles != nil {
+		if roleCfg, exists := m.config.Roles[name]; exists {
+			role = m.roleFromConfig(name, roleCfg)
+		}
+	}
+
+	if role == nil {
+		return nil, fmt.Errorf("role %q not found", name)
+	}
+
+	// Apply config overrides
+	m.applyConfigOverrides(role)
+
+	return role, nil
+}
+
+// applyConfigOverrides applies config.Roles settings to a role.
+// Config settings take precedence over role file/builtin settings.
+func (m *FileManager) applyConfigOverrides(role *Role) {
+	if m.config == nil || m.config.Roles == nil {
+		return
+	}
+
+	roleCfg, exists := m.config.Roles[role.Name]
+	if !exists || roleCfg == nil {
+		return
+	}
+
+	// Apply overrides - config values take precedence if set
+	if roleCfg.Concurrency > 0 {
+		role.Concurrency = roleCfg.Concurrency
+	}
+	if roleCfg.SystemPrompt != "" {
+		role.SystemPrompt = roleCfg.SystemPrompt
+	}
+	if roleCfg.SystemPromptFile != "" {
+		role.SystemPromptFile = roleCfg.SystemPromptFile
+		// Load the prompt from file
+		promptPath := filepath.Join(m.projectRoot, roleCfg.SystemPromptFile)
+		if promptData, err := os.ReadFile(promptPath); err == nil {
+			role.SystemPrompt = string(promptData)
+		}
+	}
+	if len(roleCfg.AllowedTools) > 0 {
+		role.AllowedTools = roleCfg.AllowedTools
+	}
+	if len(roleCfg.DisallowedTools) > 0 {
+		role.DisallowedTools = roleCfg.DisallowedTools
+	}
+	if roleCfg.Model != "" {
+		role.Model = roleCfg.Model
+	}
+	if roleCfg.MaxTurns > 0 {
+		role.MaxTurns = roleCfg.MaxTurns
+	}
+	if roleCfg.Resources != nil {
+		role.Resources = roleCfg.Resources
+	}
+}
+
+// roleFromConfig creates a Role from a config.RoleConfig.
+// Used when a role is defined only in config, not in files.
+func (m *FileManager) roleFromConfig(name string, cfg *config.RoleConfig) *Role {
+	if cfg == nil {
+		return nil
+	}
+
+	role := &Role{
+		Name:            name,
+		Description:     fmt.Sprintf("Role %s defined in tanuki.yaml", name),
+		Builtin:         false,
+		Concurrency:     cfg.Concurrency,
+		SystemPrompt:    cfg.SystemPrompt,
+		SystemPromptFile: cfg.SystemPromptFile,
+		AllowedTools:    cfg.AllowedTools,
+		DisallowedTools: cfg.DisallowedTools,
+		Model:           cfg.Model,
+		MaxTurns:        cfg.MaxTurns,
+		Resources:       cfg.Resources,
+	}
+
+	// Load system prompt from file if specified
+	if role.SystemPromptFile != "" {
+		promptPath := filepath.Join(m.projectRoot, role.SystemPromptFile)
+		if promptData, err := os.ReadFile(promptPath); err == nil {
+			role.SystemPrompt = string(promptData)
+		}
+	}
+
+	return role
 }
 
 // LoadFromFile loads a role from a YAML file.

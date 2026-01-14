@@ -94,6 +94,61 @@ type TaskInfo struct {
 
 	// SessionID is the Claude Code session identifier
 	SessionID string `json:"session_id"`
+
+	// Workstream is the workstream this task belongs to
+	Workstream string `json:"workstream,omitempty"`
+
+	// TurnsUsed tracks conversation turns for context budget
+	TurnsUsed int `json:"turns_used,omitempty"`
+
+	// IterationsUsed tracks Ralph iterations for this task
+	IterationsUsed int `json:"iterations_used,omitempty"`
+}
+
+// WorkstreamSession tracks context budget for a workstream.
+type WorkstreamSession struct {
+	// Workstream identifier
+	Workstream string `json:"workstream"`
+
+	// Role this workstream belongs to
+	Role string `json:"role"`
+
+	// AgentName assigned to this session
+	AgentName string `json:"agent_name"`
+
+	// TotalTurns used across all tasks in this session
+	TotalTurns int `json:"total_turns"`
+
+	// MaxTurns before context reset (from config)
+	MaxTurns int `json:"max_turns"`
+
+	// StartedAt is when this session started
+	StartedAt time.Time `json:"started_at"`
+
+	// Tasks completed in this session
+	TasksCompleted []string `json:"tasks_completed,omitempty"`
+
+	// CurrentTask being worked on
+	CurrentTask string `json:"current_task,omitempty"`
+}
+
+// NeedsContextReset returns true if the session has exceeded its turn budget.
+func (ws *WorkstreamSession) NeedsContextReset() bool {
+	if ws.MaxTurns <= 0 {
+		return false // No limit
+	}
+	return ws.TotalTurns >= ws.MaxTurns
+}
+
+// AddTurns increments the turn count.
+func (ws *WorkstreamSession) AddTurns(turns int) {
+	ws.TotalTurns += turns
+}
+
+// CompleteTask marks a task as completed in this session.
+func (ws *WorkstreamSession) CompleteTask(taskID string) {
+	ws.TasksCompleted = append(ws.TasksCompleted, taskID)
+	ws.CurrentTask = ""
 }
 
 // Manager handles state persistence operations.

@@ -162,6 +162,92 @@ func (m *Manager) GetByStatus(status Status) []*Task {
 	return tasks
 }
 
+// GetByWorkstream returns tasks for a specific workstream.
+// Tasks are returned sorted by priority, then by ID for stability.
+func (m *Manager) GetByWorkstream(workstream string) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.GetWorkstream() == workstream {
+			tasks = append(tasks, t)
+		}
+	}
+
+	// Sort by priority, then by ID
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Priority.Order() != tasks[j].Priority.Order() {
+			return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+
+	return tasks
+}
+
+// GetByRoleAndWorkstream returns tasks for a specific role and workstream.
+func (m *Manager) GetByRoleAndWorkstream(role, workstream string) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.Role == role && t.GetWorkstream() == workstream {
+			tasks = append(tasks, t)
+		}
+	}
+
+	// Sort by priority, then by ID
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Priority.Order() != tasks[j].Priority.Order() {
+			return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+
+	return tasks
+}
+
+// GetWorkstreams returns all unique workstreams for a role.
+// Returns workstreams sorted by the priority of their highest-priority pending task.
+func (m *Manager) GetWorkstreams(role string) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Map workstream to its highest priority (lowest order number)
+	workstreamPriority := make(map[string]int)
+
+	for _, t := range m.tasks {
+		if t.Role != role {
+			continue
+		}
+		ws := t.GetWorkstream()
+		currentPriority, exists := workstreamPriority[ws]
+		taskPriority := t.Priority.Order()
+
+		// Track the highest priority (lowest number) for each workstream
+		if !exists || taskPriority < currentPriority {
+			workstreamPriority[ws] = taskPriority
+		}
+	}
+
+	// Convert to slice and sort by priority
+	workstreams := make([]string, 0, len(workstreamPriority))
+	for ws := range workstreamPriority {
+		workstreams = append(workstreams, ws)
+	}
+
+	sort.Slice(workstreams, func(i, j int) bool {
+		if workstreamPriority[workstreams[i]] != workstreamPriority[workstreams[j]] {
+			return workstreamPriority[workstreams[i]] < workstreamPriority[workstreams[j]]
+		}
+		return workstreams[i] < workstreams[j]
+	})
+
+	return workstreams
+}
+
 // GetPending returns all pending tasks, sorted by priority.
 func (m *Manager) GetPending() []*Task {
 	tasks := m.GetByStatus(StatusPending)
@@ -353,10 +439,11 @@ func (m *Manager) UpdateBlockedStatus() error {
 
 // TaskStats holds statistics about tasks.
 type TaskStats struct {
-	Total      int
-	ByStatus   map[Status]int
-	ByRole     map[string]int
-	ByPriority map[Priority]int
+	Total        int
+	ByStatus     map[Status]int
+	ByRole       map[string]int
+	ByPriority   map[Priority]int
+	ByWorkstream map[string]int // Workstream -> task count
 }
 
 // Stats returns task statistics.
@@ -365,9 +452,10 @@ func (m *Manager) Stats() *TaskStats {
 	defer m.mu.RUnlock()
 
 	stats := &TaskStats{
-		ByStatus:   make(map[Status]int),
-		ByRole:     make(map[string]int),
-		ByPriority: make(map[Priority]int),
+		ByStatus:     make(map[Status]int),
+		ByRole:       make(map[string]int),
+		ByPriority:   make(map[Priority]int),
+		ByWorkstream: make(map[string]int),
 	}
 
 	for _, t := range m.tasks {
@@ -375,6 +463,7 @@ func (m *Manager) Stats() *TaskStats {
 		stats.ByStatus[t.Status]++
 		stats.ByRole[t.Role]++
 		stats.ByPriority[t.Priority]++
+		stats.ByWorkstream[t.GetWorkstream()]++
 	}
 
 	return stats

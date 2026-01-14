@@ -17,6 +17,7 @@ type Task struct {
 	ID         string            `yaml:"id"`
 	Title      string            `yaml:"title"`
 	Role       string            `yaml:"role"`
+	Workstream string            `yaml:"workstream,omitempty"` // Groups related tasks for sequential execution
 	Priority   Priority          `yaml:"priority"`
 	Status     Status            `yaml:"status"`
 	DependsOn  []string          `yaml:"depends_on"`
@@ -29,6 +30,15 @@ type Task struct {
 	Content     string     `yaml:"-"` // Markdown body (after front matter)
 	CompletedAt *time.Time `yaml:"completed_at,omitempty"`
 	StartedAt   *time.Time `yaml:"started_at,omitempty"`
+}
+
+// GetWorkstream returns the workstream identifier for this task.
+// If not explicitly set, returns the task ID (single-task workstream).
+func (t *Task) GetWorkstream() string {
+	if t.Workstream != "" {
+		return t.Workstream
+	}
+	return t.ID
 }
 
 // Priority levels for tasks.

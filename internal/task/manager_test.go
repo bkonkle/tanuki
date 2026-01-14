@@ -636,3 +636,117 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestManager_GetByWorkstream(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Workstream: "auth-feature", Priority: PriorityHigh},
+			"T2": {ID: "T2", Role: "backend", Workstream: "auth-feature", Priority: PriorityLow},
+			"T3": {ID: "T3", Role: "backend", Workstream: "api-refactor"},
+			"T4": {ID: "T4", Role: "frontend"}, // No workstream - uses ID
+		},
+	}
+
+	t.Run("explicit workstream", func(t *testing.T) {
+		tasks := mgr.GetByWorkstream("auth-feature")
+		if len(tasks) != 2 {
+			t.Errorf("GetByWorkstream(auth-feature) returned %d, want 2", len(tasks))
+		}
+		// Should be sorted by priority
+		if tasks[0].ID != "T1" {
+			t.Errorf("First task = %s, want T1 (higher priority)", tasks[0].ID)
+		}
+	})
+
+	t.Run("implicit workstream from ID", func(t *testing.T) {
+		tasks := mgr.GetByWorkstream("T4")
+		if len(tasks) != 1 {
+			t.Errorf("GetByWorkstream(T4) returned %d, want 1", len(tasks))
+		}
+	})
+
+	t.Run("no matches", func(t *testing.T) {
+		tasks := mgr.GetByWorkstream("nonexistent")
+		if len(tasks) != 0 {
+			t.Errorf("GetByWorkstream(nonexistent) returned %d, want 0", len(tasks))
+		}
+	})
+}
+
+func TestManager_GetByRoleAndWorkstream(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Workstream: "auth-feature"},
+			"T2": {ID: "T2", Role: "backend", Workstream: "api-refactor"},
+			"T3": {ID: "T3", Role: "frontend", Workstream: "auth-feature"},
+		},
+	}
+
+	tasks := mgr.GetByRoleAndWorkstream("backend", "auth-feature")
+	if len(tasks) != 1 {
+		t.Errorf("GetByRoleAndWorkstream() returned %d, want 1", len(tasks))
+	}
+	if tasks[0].ID != "T1" {
+		t.Errorf("Task ID = %s, want T1", tasks[0].ID)
+	}
+}
+
+func TestManager_GetWorkstreams(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Workstream: "auth-feature", Priority: PriorityLow},
+			"T2": {ID: "T2", Role: "backend", Workstream: "api-refactor", Priority: PriorityCritical},
+			"T3": {ID: "T3", Role: "backend", Workstream: "auth-feature", Priority: PriorityHigh},
+			"T4": {ID: "T4", Role: "frontend", Workstream: "ui-redesign"},
+		},
+	}
+
+	workstreams := mgr.GetWorkstreams("backend")
+	if len(workstreams) != 2 {
+		t.Errorf("GetWorkstreams(backend) returned %d, want 2", len(workstreams))
+	}
+
+	// Should be sorted by priority
+	// api-refactor has critical priority, auth-feature has high (from T3)
+	if workstreams[0] != "api-refactor" {
+		t.Errorf("First workstream = %s, want api-refactor (critical priority)", workstreams[0])
+	}
+	if workstreams[1] != "auth-feature" {
+		t.Errorf("Second workstream = %s, want auth-feature", workstreams[1])
+	}
+}
+
+func TestTask_GetWorkstream(t *testing.T) {
+	t.Run("explicit workstream", func(t *testing.T) {
+		task := &Task{ID: "T1", Workstream: "auth-feature"}
+		if task.GetWorkstream() != "auth-feature" {
+			t.Errorf("GetWorkstream() = %s, want auth-feature", task.GetWorkstream())
+		}
+	})
+
+	t.Run("implicit workstream from ID", func(t *testing.T) {
+		task := &Task{ID: "T2"}
+		if task.GetWorkstream() != "T2" {
+			t.Errorf("GetWorkstream() = %s, want T2", task.GetWorkstream())
+		}
+	})
+}
+
+func TestManager_Stats_IncludesWorkstreams(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Status: StatusPending, Role: "backend", Workstream: "ws1"},
+			"T2": {ID: "T2", Status: StatusPending, Role: "backend", Workstream: "ws1"},
+			"T3": {ID: "T3", Status: StatusComplete, Role: "backend", Workstream: "ws2"},
+		},
+	}
+
+	stats := mgr.Stats()
+
+	if stats.ByWorkstream["ws1"] != 2 {
+		t.Errorf("ByWorkstream[ws1] = %d, want 2", stats.ByWorkstream["ws1"])
+	}
+	if stats.ByWorkstream["ws2"] != 1 {
+		t.Errorf("ByWorkstream[ws2] = %d, want 1", stats.ByWorkstream["ws2"])
+	}
+}

@@ -29,8 +29,10 @@ const (
 type OrchestratorConfig struct {
 	// PollInterval is how often to check for tasks and agents.
 	PollInterval time.Duration
-	// MaxAgentsPerRole is the maximum agents to spawn per role.
+	// MaxAgentsPerRole is the maximum agents to spawn per role (deprecated, use RoleConcurrency).
 	MaxAgentsPerRole int
+	// RoleConcurrency maps role names to their concurrency limits.
+	RoleConcurrency map[string]int
 	// AutoSpawnAgents enables automatic agent spawning.
 	AutoSpawnAgents bool
 	// StopWhenComplete stops orchestrator when all tasks complete.
@@ -42,9 +44,24 @@ func DefaultOrchestratorConfig() OrchestratorConfig {
 	return OrchestratorConfig{
 		PollInterval:     10 * time.Second,
 		MaxAgentsPerRole: 1,
+		RoleConcurrency:  make(map[string]int),
 		AutoSpawnAgents:  true,
 		StopWhenComplete: false,
 	}
+}
+
+// GetRoleConcurrency returns the concurrency limit for a role.
+// Falls back to MaxAgentsPerRole if no specific limit is set.
+func (c *OrchestratorConfig) GetRoleConcurrency(role string) int {
+	if c.RoleConcurrency != nil {
+		if concurrency, ok := c.RoleConcurrency[role]; ok && concurrency > 0 {
+			return concurrency
+		}
+	}
+	if c.MaxAgentsPerRole > 0 {
+		return c.MaxAgentsPerRole
+	}
+	return 1
 }
 
 // Orchestrator manages the project lifecycle, coordinating tasks and agents.
@@ -57,6 +74,9 @@ type Orchestrator struct {
 	resolver  DependencyResolver
 	validator TaskValidator
 	runner    TaskRunner
+
+	// Workstream scheduling
+	wsScheduler *WorkstreamScheduler
 
 	// State
 	mu      sync.RWMutex
@@ -105,14 +125,33 @@ func NewOrchestrator(
 	queue TaskQueue,
 	config OrchestratorConfig,
 ) *Orchestrator {
-	return &Orchestrator{
-		taskMgr:  taskMgr,
-		agentMgr: agentMgr,
-		queue:    queue,
-		status:   StatusStopped,
-		events:   make(chan task.Event, 100),
-		config:   config,
+	wsScheduler := NewWorkstreamScheduler(taskMgr)
+
+	// Initialize role concurrency from config
+	for role, concurrency := range config.RoleConcurrency {
+		wsScheduler.SetRoleConcurrency(role, concurrency)
 	}
+
+	return &Orchestrator{
+		taskMgr:     taskMgr,
+		agentMgr:    agentMgr,
+		queue:       queue,
+		wsScheduler: wsScheduler,
+		status:      StatusStopped,
+		events:      make(chan task.Event, 100),
+		config:      config,
+	}
+}
+
+// SetRoleConcurrency sets the concurrency for a role.
+func (o *Orchestrator) SetRoleConcurrency(role string, concurrency int) {
+	o.config.RoleConcurrency[role] = concurrency
+	o.wsScheduler.SetRoleConcurrency(role, concurrency)
+}
+
+// GetWorkstreamScheduler returns the workstream scheduler.
+func (o *Orchestrator) GetWorkstreamScheduler() *WorkstreamScheduler {
+	return o.wsScheduler
 }
 
 // SetBalancer sets the task balancer.
@@ -295,6 +334,14 @@ func (o *Orchestrator) initialize(ctx context.Context) error {
 		}
 	}
 
+	// Initialize workstream scheduler
+	if err := o.wsScheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize workstream scheduler: %w", err)
+	}
+
+	wsStats := o.wsScheduler.Stats()
+	log.Printf("Workstreams initialized: %d total, %d pending", wsStats.Total, wsStats.ByStatus[WorkstreamPending])
+
 	// Build queue with pending tasks
 	for _, t := range tasks {
 		if t.Status == task.StatusPending {
@@ -319,6 +366,7 @@ func (o *Orchestrator) initialize(ctx context.Context) error {
 }
 
 // spawnAgentsForRoles spawns agents for each role that has pending tasks.
+// Uses per-role concurrency from config.
 func (o *Orchestrator) spawnAgentsForRoles(tasks []*task.Task) error {
 	// Collect roles from pending tasks
 	roles := make(map[string]bool)
@@ -328,11 +376,13 @@ func (o *Orchestrator) spawnAgentsForRoles(tasks []*task.Task) error {
 		}
 	}
 
-	// Spawn agent for each role
+	// Spawn agents for each role based on concurrency
 	for role := range roles {
-		for i := 0; i < o.config.MaxAgentsPerRole; i++ {
+		concurrency := o.config.GetRoleConcurrency(role)
+
+		for i := 0; i < concurrency; i++ {
 			agentName := fmt.Sprintf("%s-agent", role)
-			if o.config.MaxAgentsPerRole > 1 {
+			if concurrency > 1 {
 				agentName = fmt.Sprintf("%s-agent-%d", role, i+1)
 			}
 
@@ -343,7 +393,7 @@ func (o *Orchestrator) spawnAgentsForRoles(tasks []*task.Task) error {
 				continue
 			}
 
-			log.Printf("Spawning agent %s for role %s", agentName, role)
+			log.Printf("Spawning agent %s for role %s (concurrency: %d)", agentName, role, concurrency)
 			// Note: actual spawning would happen here with agentMgr.Spawn
 		}
 	}
@@ -481,6 +531,11 @@ func (o *Orchestrator) onTaskComplete(ctx context.Context, event task.Event) {
 	// Unassign task
 	_ = o.taskMgr.Unassign(event.TaskID)
 
+	// Update workstream scheduler
+	if err := o.wsScheduler.CompleteTask(event.TaskID); err != nil {
+		log.Printf("Warning: failed to update workstream for task %s: %v", event.TaskID, err)
+	}
+
 	// Check for newly unblocked tasks
 	tasks, _ := o.taskMgr.Scan()
 	for _, t := range tasks {
@@ -506,6 +561,11 @@ func (o *Orchestrator) onTaskFailed(ctx context.Context, event task.Event) {
 
 	// Log failure
 	log.Printf("Task %s failed: %s", event.TaskID, event.Message)
+
+	// Update workstream scheduler - marks entire workstream as failed
+	if err := o.wsScheduler.FailTask(event.TaskID); err != nil {
+		log.Printf("Warning: failed to update workstream for failed task %s: %v", event.TaskID, err)
+	}
 
 	// Task stays failed, agent becomes idle
 	// assignPendingTasks will pick up next task for idle agent
