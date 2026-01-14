@@ -781,13 +781,13 @@ func TestManager_Scan_ProjectFolders(t *testing.T) {
 		t.Fatalf("Failed to create project dir: %v", err)
 	}
 
-	// Create project.md (makes it a project folder)
-	projectMd := `# Project: auth-feature
+	// Create README.md (makes it a project folder)
+	readme := `# Project: auth-feature
 
 Auth feature implementation.
 `
-	if err := os.WriteFile(filepath.Join(projectDir, "project.md"), []byte(projectMd), 0600); err != nil {
-		t.Fatalf("Failed to write project.md: %v", err)
+	if err := os.WriteFile(filepath.Join(projectDir, "README.md"), []byte(readme), 0600); err != nil {
+		t.Fatalf("Failed to write README.md: %v", err)
 	}
 
 	// Create task in project folder

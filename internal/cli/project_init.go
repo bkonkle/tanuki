@@ -9,21 +9,23 @@ import (
 )
 
 var projectInitCmd = &cobra.Command{
-	Use:   "init [name]",
-	Short: "Initialize project task structure",
-	Long: `Creates tasks/ directory and project structure.
+	Use:   "init <name>",
+	Short: "Initialize a project for task management",
+	Long: `Creates a project folder within tasks/ for organizing work.
 
-Without a name argument, creates flat task structure in tasks/ with an example task.
-
-With a name argument (e.g., "tanuki project init auth-feature"), creates a project
-folder structure:
+Example: "tanuki project init auth-feature" creates:
   tasks/
+    README.md                                  # Tasks directory overview
     auth-feature/
-      project.md       # Project context and goals
-      001-task.md      # Example task file
+      README.md                                # Project context and goals
+      001-backend-main-example-task.md         # Example task file
+
+Each project is a linear record of tasks that drive role-based agents and
+document incremental decisions and specifications over time.
 
 The tasks directory location is configurable via tasks_dir in tanuki.yaml
 (defaults to "tasks").`,
+	Args: cobra.ExactArgs(1),
 	RunE: runProjectInit,
 }
 
@@ -45,24 +47,24 @@ func runProjectInit(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("create task directory: %w", err)
 	}
 
-	// If a project name is provided, create a project subfolder
-	if len(args) > 0 {
-		return initProjectFolder(taskDir, args[0])
+	// Create top-level tasks README if it doesn't exist
+	if err := ensureTasksReadme(taskDir); err != nil {
+		return fmt.Errorf("create tasks README: %w", err)
 	}
 
-	// Otherwise, create flat structure (backward compatible)
-	return initFlatStructure(taskDir, projectRoot)
+	// Create the project folder
+	return initProjectFolder(taskDir, args[0])
 }
 
-// initProjectFolder creates a project subfolder with project.md and example task.
+// initProjectFolder creates a project subfolder with README.md and example task.
 func initProjectFolder(taskDir, projectName string) error {
 	projectPath := filepath.Join(taskDir, projectName)
 
 	// Check if project already exists
-	projectMdPath := filepath.Join(projectPath, "project.md")
-	if _, err := os.Stat(projectMdPath); err == nil {
+	readmePath := filepath.Join(projectPath, "README.md")
+	if _, err := os.Stat(readmePath); err == nil {
 		fmt.Printf("Project '%s' already initialized.\n", projectName)
-		fmt.Printf("Project directory: %s\n", projectPath)
+		fmt.Printf("  Tasks:   %s\n", projectPath)
 		return nil
 	}
 
@@ -71,7 +73,7 @@ func initProjectFolder(taskDir, projectName string) error {
 		return fmt.Errorf("create project directory: %w", err)
 	}
 
-	// Create project.md
+	// Create README.md
 	projectDoc := fmt.Sprintf(`# Project: %s
 
 Brief project description. Update this with your project's overview.
@@ -94,8 +96,8 @@ Files agents should understand:
 - Any architecture documentation
 `, projectName)
 
-	if err := os.WriteFile(projectMdPath, []byte(projectDoc), 0600); err != nil {
-		return fmt.Errorf("write project.md: %w", err)
+	if err := os.WriteFile(readmePath, []byte(projectDoc), 0600); err != nil {
+		return fmt.Errorf("write README.md: %w", err)
 	}
 
 	// Create example task with workstream
@@ -129,18 +131,18 @@ This is an example task file. Replace this with your actual task.
 - Say TASK_DONE when finished
 `, projectName)
 
-	examplePath := filepath.Join(projectPath, "001-example.md")
+	examplePath := filepath.Join(projectPath, "001-backend-main-example-task.md")
 	if err := os.WriteFile(examplePath, []byte(exampleTask), 0600); err != nil {
 		return fmt.Errorf("write example task: %w", err)
 	}
 
 	fmt.Printf("Initialized project '%s'\n", projectName)
-	fmt.Printf("  Project:  %s\n", projectPath)
-	fmt.Printf("  Metadata: %s\n", projectMdPath)
-	fmt.Printf("  Example:  %s\n", examplePath)
+	fmt.Printf("  Tasks:   %s\n", projectPath)
+	fmt.Printf("  Project: %s\n", readmePath)
+	fmt.Printf("  Example: %s\n", examplePath)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Printf("  1. Edit %s with your project description\n", projectMdPath)
+	fmt.Printf("  1. Edit %s with your project description\n", readmePath)
 	fmt.Printf("  2. Create task files in %s/\n", projectPath)
 	fmt.Printf("  3. Run: tanuki project status %s\n", projectName)
 	fmt.Printf("  4. Run: tanuki project start %s\n", projectName)
@@ -148,89 +150,67 @@ This is an example task file. Replace this with your actual task.
 	return nil
 }
 
-// initFlatStructure creates the flat task structure (backward compatible).
-func initFlatStructure(taskDir, projectRoot string) error {
-	// Check if already initialized (has project.md in tasks/)
-	projectPath := filepath.Join(taskDir, "project.md")
-	if _, err := os.Stat(projectPath); err == nil {
-		fmt.Println("Project tasks already initialized.")
-		fmt.Printf("Task directory: %s\n", taskDir)
-		return nil
+// ensureTasksReadme creates the top-level tasks/README.md if it doesn't exist.
+func ensureTasksReadme(taskDir string) error {
+	readmePath := filepath.Join(taskDir, "README.md")
+	if _, err := os.Stat(readmePath); err == nil {
+		return nil // Already exists
 	}
 
-	projectName := filepath.Base(projectRoot)
-	projectDoc := fmt.Sprintf(`# Project: %s
+	tasksReadme := `# Tasks
 
-Brief project description. Update this with your project's overview.
+This directory contains project folders for task-driven development with Tanuki.
 
-## Architecture
+## Purpose
 
-Describe key components and their relationships here.
+Each project folder serves as a **linear, historical record** of work:
 
-## Conventions
+- **Driving agents**: Tasks define work for role-based agents that execute in parallel
+- **Documenting decisions**: Each task captures requirements, context, and completion criteria
+- **Tracking evolution**: The sequence of tasks shows how a project evolved over time
 
-- Code style guidelines
-- Testing requirements
-- Documentation standards
+## Structure
 
-## Context Files
+` + "```" + `
+tasks/
+  README.md                              # This file
+  project-name/
+    README.md                            # Project overview and context
+    001-backend-main-setup.md            # First task
+    002-frontend-ui-dashboard.md         # Second task
+    ...
+` + "```" + `
 
-Files agents should understand:
-- README.md
-- CLAUDE.md (if exists)
-- Any architecture documentation
-`, projectName)
+## Task File Format
 
-	if err := os.WriteFile(projectPath, []byte(projectDoc), 0600); err != nil {
-		return fmt.Errorf("write project.md: %w", err)
-	}
+Tasks use YAML front matter with markdown content:
 
-	// Create example task with workstream
-	exampleTask := `---
-id: TASK-001
-title: Example Task
-role: backend
-workstream: example-feature
-priority: medium
-status: pending
-depends_on: []
-
+` + "```" + `markdown
+---
+id: project-001
+title: Task Title
+role: backend          # Agent role (backend, frontend, qa, etc.)
+workstream: main       # Groups related sequential work
+priority: high         # critical, high, medium, low
+status: pending        # pending, assigned, in_progress, complete, failed
+depends_on: []         # Task IDs that must complete first
 completion:
-  verify: "echo 'Task complete'"
-  signal: "TASK_DONE"
+  verify: "npm test"   # Command to verify completion
+  signal: "TASK_DONE"  # Signal agent outputs when done
 ---
 
-# Example Task
+# Task Title
 
-This is an example task file. Replace this with your actual task.
+Task description and requirements...
+` + "```" + `
 
-## Requirements
+## Commands
 
-1. First requirement
-2. Second requirement
-
-## Done When
-
-- All requirements are implemented
-- Tests pass
-- Say TASK_DONE when finished
+- ` + "`tanuki project init <name>`" + ` - Create a new project folder
+- ` + "`tanuki project status [name]`" + ` - Show project and task status
+- ` + "`tanuki project start [name]`" + ` - Start agents for pending tasks
+- ` + "`tanuki project stop`" + ` - Stop running agents
 `
 
-	examplePath := filepath.Join(taskDir, "TASK-001-example.md")
-	if err := os.WriteFile(examplePath, []byte(exampleTask), 0600); err != nil {
-		return fmt.Errorf("write example task: %w", err)
-	}
-
-	fmt.Println("Initialized project structure")
-	fmt.Printf("  Tasks:   %s\n", taskDir)
-	fmt.Printf("  Project: %s\n", projectPath)
-	fmt.Printf("  Example: %s\n", examplePath)
-	fmt.Println()
-	fmt.Println("Next steps:")
-	fmt.Printf("  1. Edit %s with your project description\n", projectPath)
-	fmt.Printf("  2. Create task files in %s/\n", taskDir)
-	fmt.Println("  3. Run: tanuki project status")
-	fmt.Println("  4. Run: tanuki project start")
-
-	return nil
+	return os.WriteFile(readmePath, []byte(tasksReadme), 0600)
 }

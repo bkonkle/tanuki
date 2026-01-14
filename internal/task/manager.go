@@ -40,8 +40,8 @@ func NewManager(cfg *Config) *Manager {
 }
 
 // Scan loads all task files from the configured tasks directory.
-// It supports both flat structure (tasks/*.md) and project folder structure
-// (tasks/project-name/*.md where project-name contains a project.md).
+// It supports project folder structure (tasks/project-name/*.md where
+// project-name contains a README.md to identify it as a project).
 // Invalid task files are logged as warnings but don't stop the scan.
 func (m *Manager) Scan() ([]*Task, error) {
 	m.mu.Lock()
@@ -65,9 +65,9 @@ func (m *Manager) Scan() ([]*Task, error) {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			// Check if it's a project folder (contains project.md)
-			projectPath := filepath.Join(m.tasksDir, entry.Name(), "project.md")
-			if _, err := os.Stat(projectPath); err == nil {
+			// Check if it's a project folder (contains README.md)
+			readmePath := filepath.Join(m.tasksDir, entry.Name(), "README.md")
+			if _, err := os.Stat(readmePath); err == nil {
 				// It's a project folder - scan it for tasks
 				projectName := entry.Name()
 				projectTasks, errs := m.scanProjectDir(filepath.Join(m.tasksDir, entry.Name()), projectName)
@@ -81,8 +81,8 @@ func (m *Manager) Scan() ([]*Task, error) {
 			continue
 		}
 
-		// Skip project.md in root (shouldn't exist, but be safe)
-		if entry.Name() == "project.md" {
+		// Skip README.md in root tasks directory
+		if entry.Name() == "README.md" {
 			continue
 		}
 
@@ -124,8 +124,8 @@ func (m *Manager) scanProjectDir(dir, projectName string) ([]*Task, []error) {
 			continue
 		}
 
-		// Skip project.md - it's project metadata, not a task
-		if entry.Name() == "project.md" {
+		// Skip README.md - it's project metadata, not a task
+		if entry.Name() == "README.md" {
 			continue
 		}
 

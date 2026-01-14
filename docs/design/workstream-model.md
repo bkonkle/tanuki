@@ -14,10 +14,10 @@ Workstreams group related tasks that should be executed sequentially on the same
 
 ```yaml
 ---
-id: AUTH-001
+id: user-auth-001
 title: Implement login endpoint
 role: backend
-workstream: auth-feature    # NEW: workstream identifier
+workstream: api    # Named workstream (e.g., "api", "auth", "database", "ui")
 priority: high
 status: pending
 depends_on: []
@@ -133,9 +133,9 @@ When budget is hit:
 
 ## Project Document
 
-### .tanuki/project.md
+### tasks/{project-name}/README.md
 
-Created by `tanuki project init`:
+Created by `tanuki project init <name>`:
 
 ```markdown
 # Project: <name>
@@ -159,6 +159,9 @@ Files agents should understand:
 - CLAUDE.md (if exists)
 - architecture docs
 ```
+
+The tasks directory also contains a top-level README.md explaining the multi-project structure
+and task format conventions.
 
 ### Loading into Agent Context
 

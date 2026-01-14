@@ -101,11 +101,11 @@ tanuki merge auth
 ### Project Workflow (Automated)
 
 ```bash
-# Initialize project doc and tickets
-tanuki project init
+# Initialize a project for authentication work
+tanuki project init user-auth
 
-# Describe the project in tasks/project.md
-cat > tasks/project.md << 'EOF'
+# Describe the project in tasks/user-auth/README.md
+cat > tasks/user-auth/README.md << 'EOF'
 # Project: User Authentication
 
 Goals:
@@ -115,25 +115,25 @@ Goals:
 Roles: backend, frontend, qa
 EOF
 
-# Create ticket files in tasks/
-cat > tasks/TICKET-001-auth.md << 'EOF'
+# Create task files in the project folder
+cat > tasks/user-auth/001-backend-api-auth-endpoint.md << 'EOF'
 ---
-id: TICKET-001
-title: Implement User Authentication
+id: user-auth-001
+title: Implement Authentication Endpoint
 role: backend
-workstream: auth
+workstream: api
 priority: high
 completion:
   verify: "go test ./auth/..."
   signal: "AUTH_COMPLETE"
 ---
-# Implement User Authentication
+# Implement Authentication Endpoint
 
 Add OAuth2-based authentication to the API.
 EOF
 
 # Start automated task distribution
-tanuki project start
+tanuki project start user-auth
 
 # Monitor with the dashboard
 tanuki dashboard
@@ -214,9 +214,10 @@ Projects define the shared context for a Tanuki run. The workflow is:
 
 Projects -> Roles -> Workstreams -> Tasks
 
-A project doc (for example `tasks/project.md`) captures goals, constraints, and shared context.
-Tickets (tasks) are Markdown files tagged with a role and an optional workstream. Roles must exist
-in the project's `tanuki.yaml`, which also defines role prompts and workstream concurrency.
+Each project lives in its own folder under `tasks/` (e.g., `tasks/user-auth/`). The project's
+`README.md` captures goals, constraints, and shared context. Tasks are Markdown files tagged with
+a role and a named workstream (e.g., "api", "ui", "auth"). Roles must exist in `tanuki.yaml`,
+which also defines role prompts and workstream concurrency.
 
 The tasks directory defaults to `tasks/` but is configurable via `tasks_dir` in `tanuki.yaml`.
 
@@ -246,27 +247,31 @@ vim .tanuki/roles/my-custom-role.yaml
 
 ## Workstreams
 
-Workstreams let multiple agents of the same role work in parallel on different tasks. For example,
-if you have five backend tasks across two workstreams (`auth` and `api`), you can have two backend
-agents running simultaneously — one focused on auth tasks, another on API tasks.
+Workstreams let multiple agents of the same role work in parallel on different feature areas.
+Each workstream has a descriptive name (e.g., "api", "auth", "ui", "database") that indicates
+what aspect of the project it focuses on.
 
-Each workstream gets its own container and worktree. Within a workstream, tasks run sequentially
-(one at a time), but different workstreams run concurrently. This gives you parallelism without
-conflicts — agents in separate workstreams can't step on each other's changes.
+For example, if you have five backend tasks across two workstreams (`api` and `database`), you can
+have two backend agents running simultaneously — one focused on API endpoints, another on database
+migrations. Tasks within a workstream run sequentially, but different workstreams run concurrently.
+
+Each workstream gets its own container and worktree. This gives you parallelism without conflicts —
+agents in separate workstreams can't step on each other's changes.
 
 Concurrency is configured per role. Setting `concurrency: 3` for the backend role means up to
 three backend workstreams can run at once.
 
 ## Tasks
 
-Tasks (tickets) are Markdown files with YAML front matter in `tasks/`:
+Tasks are Markdown files with YAML front matter in project folders. File names follow the pattern
+`NNN-role-workstream-description.md` (e.g., `001-backend-api-auth-endpoint.md`):
 
 ```markdown
 ---
-id: TICKET-001
-title: Implement User Authentication
+id: user-auth-001
+title: Implement Authentication Endpoint
 role: backend
-workstream: auth
+workstream: api
 priority: high
 status: pending
 depends_on: []
@@ -281,7 +286,7 @@ tags:
   - security
 ---
 
-# Implement User Authentication
+# Implement Authentication Endpoint
 
 Add OAuth2-based authentication to the API.
 

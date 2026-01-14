@@ -16,8 +16,8 @@ func TestProjectInit(t *testing.T) {
 	defer func() { _ = os.Chdir(oldWd) }()
 	_ = os.Chdir(tempDir)
 
-	// Run init
-	err := runProjectInit(nil, nil)
+	// Run init with project name (now required)
+	err := runProjectInit(nil, []string{"test-project"})
 	if err != nil {
 		t.Fatalf("runProjectInit() error: %v", err)
 	}
@@ -28,8 +28,26 @@ func TestProjectInit(t *testing.T) {
 		t.Error("task directory was not created")
 	}
 
+	// Check top-level README.md was created
+	tasksReadme := filepath.Join(taskDir, "README.md")
+	if _, statErr := os.Stat(tasksReadme); os.IsNotExist(statErr) {
+		t.Error("tasks README.md was not created")
+	}
+
+	// Check project directory was created
+	projectDir := filepath.Join(taskDir, "test-project")
+	if _, statErr := os.Stat(projectDir); os.IsNotExist(statErr) {
+		t.Error("project directory was not created")
+	}
+
+	// Check project README.md was created
+	projectReadme := filepath.Join(projectDir, "README.md")
+	if _, statErr := os.Stat(projectReadme); os.IsNotExist(statErr) {
+		t.Error("project README.md was not created")
+	}
+
 	// Check example task was created
-	examplePath := filepath.Join(taskDir, "TASK-001-example.md")
+	examplePath := filepath.Join(projectDir, "001-backend-main-example-task.md")
 	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
@@ -40,7 +58,7 @@ func TestProjectInit(t *testing.T) {
 		t.Fatalf("read example task: %v", err)
 	}
 
-	if !strings.Contains(string(content), "id: TASK-001") {
+	if !strings.Contains(string(content), "id: test-project-001") {
 		t.Error("example task missing id")
 	}
 	if !strings.Contains(string(content), "role: backend") {
@@ -55,36 +73,36 @@ func TestProjectInitIdempotent(t *testing.T) {
 	defer func() { _ = os.Chdir(oldWd) }()
 	_ = os.Chdir(tempDir)
 
-	// Run init twice
-	if err := runProjectInit(nil, nil); err != nil {
+	// Run init twice with same project name
+	if err := runProjectInit(nil, []string{"test-project"}); err != nil {
 		t.Fatalf("first runProjectInit() error: %v", err)
 	}
 
-	if err := runProjectInit(nil, nil); err != nil {
+	if err := runProjectInit(nil, []string{"test-project"}); err != nil {
 		t.Fatalf("second runProjectInit() error: %v", err)
 	}
 
-	// Should still have exactly one example task (plus project.md)
-	taskDir := filepath.Join(tempDir, "tasks")
-	entries, err := os.ReadDir(taskDir)
+	// Should still have exactly one example task (plus README.md) in project dir
+	projectDir := filepath.Join(tempDir, "tasks", "test-project")
+	entries, err := os.ReadDir(projectDir)
 	if err != nil {
-		t.Fatalf("read task dir: %v", err)
+		t.Fatalf("read project dir: %v", err)
 	}
 
-	// Expect 2 files: project.md and TASK-001-example.md
+	// Expect 2 files: README.md and 001-backend-main-example-task.md
 	if len(entries) != 2 {
-		t.Errorf("expected 2 files (project.md + example task), got %d", len(entries))
+		t.Errorf("expected 2 files (README.md + example task), got %d", len(entries))
 	}
 }
 
-func TestProjectInitWithName(t *testing.T) {
+func TestProjectInitWithDifferentName(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
 	defer func() { _ = os.Chdir(oldWd) }()
 	_ = os.Chdir(tempDir)
 
-	// Run init with a project name
+	// Run init with a different project name
 	err := runProjectInit(nil, []string{"auth-feature"})
 	if err != nil {
 		t.Fatalf("runProjectInit(auth-feature) error: %v", err)
@@ -102,14 +120,14 @@ func TestProjectInitWithName(t *testing.T) {
 		t.Error("project folder was not created")
 	}
 
-	// Check project.md was created in project folder
-	projectMdPath := filepath.Join(projectDir, "project.md")
-	if _, statErr := os.Stat(projectMdPath); os.IsNotExist(statErr) {
-		t.Error("project.md was not created")
+	// Check README.md was created in project folder
+	readmePath := filepath.Join(projectDir, "README.md")
+	if _, statErr := os.Stat(readmePath); os.IsNotExist(statErr) {
+		t.Error("README.md was not created")
 	}
 
 	// Check example task was created in project folder
-	examplePath := filepath.Join(projectDir, "001-example.md")
+	examplePath := filepath.Join(projectDir, "001-backend-main-example-task.md")
 	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
@@ -128,32 +146,44 @@ func TestProjectInitWithName(t *testing.T) {
 	}
 }
 
-func TestProjectInitWithNameIdempotent(t *testing.T) {
+func TestProjectInitMultipleProjects(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
 	defer func() { _ = os.Chdir(oldWd) }()
 	_ = os.Chdir(tempDir)
 
-	// Run init with project name twice
-	if err := runProjectInit(nil, []string{"my-project"}); err != nil {
-		t.Fatalf("first runProjectInit(my-project) error: %v", err)
+	// Create two different projects
+	if err := runProjectInit(nil, []string{"project-one"}); err != nil {
+		t.Fatalf("runProjectInit(project-one) error: %v", err)
 	}
 
-	if err := runProjectInit(nil, []string{"my-project"}); err != nil {
-		t.Fatalf("second runProjectInit(my-project) error: %v", err)
+	if err := runProjectInit(nil, []string{"project-two"}); err != nil {
+		t.Fatalf("runProjectInit(project-two) error: %v", err)
 	}
 
-	// Should still have exactly one example task (plus project.md)
-	projectDir := filepath.Join(tempDir, "tasks", "my-project")
-	entries, err := os.ReadDir(projectDir)
+	// Check both project directories exist
+	taskDir := filepath.Join(tempDir, "tasks")
+	entries, err := os.ReadDir(taskDir)
 	if err != nil {
-		t.Fatalf("read project dir: %v", err)
+		t.Fatalf("read tasks dir: %v", err)
 	}
 
-	// Expect 2 files: project.md and 001-example.md
-	if len(entries) != 2 {
-		t.Errorf("expected 2 files (project.md + example task), got %d", len(entries))
+	// Expect 3 entries: README.md, project-one, project-two
+	if len(entries) != 3 {
+		t.Errorf("expected 3 entries (README.md + 2 projects), got %d", len(entries))
+	}
+
+	// Verify each project has README.md and example task
+	for _, projectName := range []string{"project-one", "project-two"} {
+		projectDir := filepath.Join(taskDir, projectName)
+		projectEntries, err := os.ReadDir(projectDir)
+		if err != nil {
+			t.Fatalf("read %s dir: %v", projectName, err)
+		}
+		if len(projectEntries) != 2 {
+			t.Errorf("%s: expected 2 files (README.md + example task), got %d", projectName, len(projectEntries))
+		}
 	}
 }
 

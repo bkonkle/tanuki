@@ -12,7 +12,7 @@ import (
 )
 
 // Project represents a project folder containing tasks.
-// A project is identified by a folder with a project.md file inside tasks/.
+// A project is identified by a folder with a README.md file inside tasks/.
 type Project struct {
 	// Name is the folder name (e.g., "auth-feature")
 	Name string
@@ -156,7 +156,7 @@ func (pm *Manager) Scan() error {
 	// Create Project objects for each project folder
 	for name, tasks := range projectTasks {
 		projectPath := filepath.Join(pm.tasksDir, name)
-		desc, _ := pm.parseProjectMd(filepath.Join(projectPath, "project.md"))
+		desc, _ := pm.parseProjectReadme(filepath.Join(projectPath, "README.md"))
 
 		pm.projects[name] = &Project{
 			Name:        name,
@@ -169,9 +169,9 @@ func (pm *Manager) Scan() error {
 	return nil
 }
 
-// parseProjectMd reads project.md and extracts the description.
+// parseProjectReadme reads the project README.md and extracts the description.
 // Returns the first non-header paragraph as description.
-func (pm *Manager) parseProjectMd(path string) (string, error) {
+func (pm *Manager) parseProjectReadme(path string) (string, error) {
 	content, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
@@ -262,7 +262,7 @@ func (pm *Manager) HasProjects() bool {
 	return len(pm.projects) > 0
 }
 
-// CreateProject creates a new project folder with project.md.
+// CreateProject creates a new project folder with README.md.
 func (pm *Manager) CreateProject(name, description string) (*Project, error) {
 	projectPath := filepath.Join(pm.tasksDir, name)
 
@@ -276,8 +276,8 @@ func (pm *Manager) CreateProject(name, description string) (*Project, error) {
 		return nil, fmt.Errorf("create project directory: %w", err)
 	}
 
-	// Create project.md
-	projectMd := fmt.Sprintf(`# Project: %s
+	// Create README.md
+	readmeContent := fmt.Sprintf(`# Project: %s
 
 %s
 
@@ -298,9 +298,9 @@ Files agents should understand:
 - CLAUDE.md (if exists)
 `, name, description)
 
-	projectMdPath := filepath.Join(projectPath, "project.md")
-	if err := os.WriteFile(projectMdPath, []byte(projectMd), 0600); err != nil {
-		return nil, fmt.Errorf("write project.md: %w", err)
+	readmePath := filepath.Join(projectPath, "README.md")
+	if err := os.WriteFile(readmePath, []byte(readmeContent), 0600); err != nil {
+		return nil, fmt.Errorf("write README.md: %w", err)
 	}
 
 	project := &Project{
@@ -320,13 +320,13 @@ Files agents should understand:
 // ProjectExists checks if a project folder exists.
 func (pm *Manager) ProjectExists(name string) bool {
 	projectPath := filepath.Join(pm.tasksDir, name)
-	projectMdPath := filepath.Join(projectPath, "project.md")
-	_, err := os.Stat(projectMdPath)
+	readmePath := filepath.Join(projectPath, "README.md")
+	_, err := os.Stat(readmePath)
 	return err == nil
 }
 
 // AgentName returns the standardized agent name for a project and workstream.
-// Format: {project}-{workstream} (e.g., "auth-feature-a")
+// Format: {project}-{workstream} (e.g., "auth-feature-api" or "user-service-main")
 func AgentName(project, workstream string) string {
 	// Clean the names: lowercase, replace spaces with hyphens
 	project = strings.ToLower(strings.ReplaceAll(project, " ", "-"))
