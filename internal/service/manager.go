@@ -312,8 +312,8 @@ func (m *ServiceManager) GetAllStatus() map[string]*Status {
 	result := make(map[string]*Status)
 
 	for name := range m.services {
-		status, _ := m.GetStatus(name)
-		if status != nil {
+		status, err := m.GetStatus(name)
+		if err == nil && status != nil {
 			result[name] = status
 		}
 	}
@@ -435,5 +435,5 @@ func (m *ServiceManager) isContainerRunning(containerName string) bool {
 // removeContainer removes a container (forcefully).
 func (m *ServiceManager) removeContainer(containerName string) {
 	cmd := exec.Command("docker", "rm", "-f", containerName)
-	_ = cmd.Run() // Ignore errors - container might not exist
+	_ = cmd.Run()
 }

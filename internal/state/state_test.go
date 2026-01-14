@@ -31,7 +31,7 @@ func TestNewFileStateManager_NewState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -58,7 +58,7 @@ func TestNewFileStateManager_ExistingState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 
@@ -74,9 +74,9 @@ func TestNewFileStateManager_ExistingState(t *testing.T) {
 		},
 	}
 
-	os.MkdirAll(filepath.Dir(statePath), 0755)
+	_ = os.MkdirAll(filepath.Dir(statePath), 0755)
 	data, _ := json.Marshal(existingState)
-	os.WriteFile(statePath, data, 0644)
+	_ = os.WriteFile(statePath, data, 0644)
 
 	// Load existing state
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -105,7 +105,7 @@ func TestSetAgent_NewAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -156,7 +156,7 @@ func TestSetAgent_UpdateExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -169,7 +169,7 @@ func TestSetAgent_UpdateExisting(t *testing.T) {
 		Name:   "test-agent",
 		Status: StatusIdle,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -199,7 +199,7 @@ func TestRemoveAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -212,7 +212,7 @@ func TestRemoveAgent(t *testing.T) {
 		Name:   "test-agent",
 		Status: StatusIdle,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	// Remove agent
 	if err := mgr.RemoveAgent("test-agent"); err != nil {
@@ -236,7 +236,7 @@ func TestRemoveAgent_NotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -255,7 +255,7 @@ func TestListAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -270,7 +270,7 @@ func TestListAgents(t *testing.T) {
 			ContainerID: string(rune('a' + i)),
 			Status:      StatusIdle,
 		}
-		mgr.SetAgent(agent)
+		_ = mgr.SetAgent(agent)
 	}
 
 	agents, err := mgr.ListAgents()
@@ -300,7 +300,7 @@ func TestAtomicWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -313,7 +313,7 @@ func TestAtomicWrite(t *testing.T) {
 		Name:   "test-agent",
 		Status: StatusIdle,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	// Verify no .tmp file exists after successful write
 	tmpPath := statePath + ".tmp"
@@ -332,7 +332,7 @@ func TestReconcile_ContainerRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 
@@ -353,7 +353,7 @@ func TestReconcile_ContainerRemoved(t *testing.T) {
 		ContainerID: "abc123",
 		Status:      StatusIdle,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	// Reconcile should detect container is gone
 	if err := mgr.Reconcile(); err != nil {
@@ -371,7 +371,7 @@ func TestReconcile_ContainerStopped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 
@@ -392,7 +392,7 @@ func TestReconcile_ContainerStopped(t *testing.T) {
 		ContainerID: "abc123",
 		Status:      StatusWorking,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	// Reconcile should detect container is stopped
 	if err := mgr.Reconcile(); err != nil {
@@ -410,7 +410,7 @@ func TestReconcile_ContainerRestarted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 
@@ -431,7 +431,7 @@ func TestReconcile_ContainerRestarted(t *testing.T) {
 		ContainerID: "abc123",
 		Status:      StatusStopped,
 	}
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	// Reconcile should detect container is running again
 	if err := mgr.Reconcile(); err != nil {
@@ -449,7 +449,7 @@ func TestReconcile_NoChecker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -468,7 +468,7 @@ func TestStatePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 
@@ -483,7 +483,7 @@ func TestStatePersistence(t *testing.T) {
 		ContainerID: "xyz789",
 		Status:      StatusIdle,
 	}
-	mgr1.SetAgent(agent)
+	_ = mgr1.SetAgent(agent)
 
 	// Create new manager (simulating CLI restart)
 	mgr2, err := NewFileStateManager(statePath, nil)
@@ -507,7 +507,7 @@ func TestTaskInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	statePath := filepath.Join(tmpDir, ".tanuki", "state", "agents.json")
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -527,7 +527,7 @@ func TestTaskInfo(t *testing.T) {
 		},
 	}
 
-	mgr.SetAgent(agent)
+	_ = mgr.SetAgent(agent)
 
 	retrieved, err := mgr.GetAgent("test-agent")
 	if err != nil {

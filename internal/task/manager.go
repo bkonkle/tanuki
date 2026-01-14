@@ -347,7 +347,11 @@ func (m *Manager) GetNextAvailable(role string) (*Task, error) {
 
 	// Return first non-blocked task
 	for _, t := range candidates {
-		if blocked, _ := m.isBlockedInternal(t.ID); !blocked {
+		blocked, err := m.isBlockedInternal(t.ID)
+		if err != nil {
+			continue // Skip tasks we can't check
+		}
+		if !blocked {
 			return t, nil
 		}
 	}
@@ -489,7 +493,10 @@ func (m *Manager) UpdateBlockedStatus() error {
 
 	for _, task := range m.tasks {
 		if task.Status == StatusPending || task.Status == StatusBlocked {
-			blocked, _ := m.isBlockedInternal(task.ID)
+			blocked, err := m.isBlockedInternal(task.ID)
+			if err != nil {
+				continue // Skip tasks we can't check
+			}
 			if blocked && task.Status != StatusBlocked {
 				task.Status = StatusBlocked
 				WriteFile(task)

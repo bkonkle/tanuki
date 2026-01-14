@@ -103,7 +103,10 @@ func TestCompletionHandler_HandleAgentOutput(t *testing.T) {
 			}
 
 			// Check task status was updated
-			task, _ := taskMgr.Get(tt.task.ID)
+			task, err := taskMgr.Get(tt.task.ID)
+			if err != nil {
+				t.Fatalf("Get() error: %v", err)
+			}
 			if task.Status != tt.wantStatus {
 				t.Errorf("Status = %v, want %v", task.Status, tt.wantStatus)
 			}

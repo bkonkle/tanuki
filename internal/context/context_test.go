@@ -22,9 +22,9 @@ func TestManager_CopyContextFiles_SingleFile(t *testing.T) {
 
 	// Create test file
 	docsDir := filepath.Join(projectRoot, "docs")
-	os.MkdirAll(docsDir, 0755)
+	_ = os.MkdirAll(docsDir, 0755)
 	testFile := filepath.Join(docsDir, "README.md")
-	os.WriteFile(testFile, []byte("# Test"), 0644)
+	_ = os.WriteFile(testFile, []byte("# Test"), 0644)
 
 	m := NewManager(projectRoot, false)
 	result, err := m.CopyContextFiles(worktreeRoot, []string{"docs/README.md"})
@@ -55,10 +55,10 @@ func TestManager_CopyContextFiles_GlobPattern(t *testing.T) {
 
 	// Create test files
 	docsDir := filepath.Join(projectRoot, "docs")
-	os.MkdirAll(docsDir, 0755)
-	os.WriteFile(filepath.Join(docsDir, "file1.md"), []byte("# File 1"), 0644)
-	os.WriteFile(filepath.Join(docsDir, "file2.md"), []byte("# File 2"), 0644)
-	os.WriteFile(filepath.Join(docsDir, "file3.txt"), []byte("Not markdown"), 0644)
+	_ = os.MkdirAll(docsDir, 0755)
+	_ = os.WriteFile(filepath.Join(docsDir, "file1.md"), []byte("# File 1"), 0644)
+	_ = os.WriteFile(filepath.Join(docsDir, "file2.md"), []byte("# File 2"), 0644)
+	_ = os.WriteFile(filepath.Join(docsDir, "file3.txt"), []byte("Not markdown"), 0644)
 
 	m := NewManager(projectRoot, false)
 	result, err := m.CopyContextFiles(worktreeRoot, []string{"docs/*.md"})
@@ -110,9 +110,9 @@ func TestManager_CopyContextFiles_Symlinks(t *testing.T) {
 
 	// Create test file
 	docsDir := filepath.Join(projectRoot, "docs")
-	os.MkdirAll(docsDir, 0755)
+	_ = os.MkdirAll(docsDir, 0755)
 	testFile := filepath.Join(docsDir, "README.md")
-	os.WriteFile(testFile, []byte("# Test"), 0644)
+	_ = os.WriteFile(testFile, []byte("# Test"), 0644)
 
 	m := NewManager(projectRoot, true) // Use symlinks
 	result, err := m.CopyContextFiles(worktreeRoot, []string{"docs/README.md"})
@@ -141,8 +141,8 @@ func TestManager_CopyContextFiles_MixedPatterns(t *testing.T) {
 
 	// Create test files
 	docsDir := filepath.Join(projectRoot, "docs")
-	os.MkdirAll(docsDir, 0755)
-	os.WriteFile(filepath.Join(docsDir, "exists.md"), []byte("# Exists"), 0644)
+	_ = os.MkdirAll(docsDir, 0755)
+	_ = os.WriteFile(filepath.Join(docsDir, "exists.md"), []byte("# Exists"), 0644)
 
 	m := NewManager(projectRoot, false)
 	result, err := m.CopyContextFiles(worktreeRoot, []string{
@@ -175,9 +175,9 @@ func TestManager_ListContextFiles(t *testing.T) {
 
 	// Create context directory with files
 	contextDir := filepath.Join(worktreeRoot, ".tanuki", "context", "docs")
-	os.MkdirAll(contextDir, 0755)
-	os.WriteFile(filepath.Join(contextDir, "file1.md"), []byte("# File 1"), 0644)
-	os.WriteFile(filepath.Join(contextDir, "file2.md"), []byte("# File 2"), 0644)
+	_ = os.MkdirAll(contextDir, 0755)
+	_ = os.WriteFile(filepath.Join(contextDir, "file1.md"), []byte("# File 1"), 0644)
+	_ = os.WriteFile(filepath.Join(contextDir, "file2.md"), []byte("# File 2"), 0644)
 
 	m := NewManager("/project", false)
 	files, err := m.ListContextFiles(worktreeRoot)

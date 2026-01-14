@@ -94,7 +94,7 @@ func TestManager_Scan_NoDirectory(t *testing.T) {
 func TestManager_Scan_SkipsInvalidFiles(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	// Valid task
 	validTask := `---
@@ -105,7 +105,7 @@ role: backend
 
 Content
 `
-	os.WriteFile(filepath.Join(tasksDir, "valid.md"), []byte(validTask), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "valid.md"), []byte(validTask), 0644)
 
 	// Invalid task (missing role)
 	invalidTask := `---
@@ -115,10 +115,10 @@ title: Invalid Task
 
 Content
 `
-	os.WriteFile(filepath.Join(tasksDir, "invalid.md"), []byte(invalidTask), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "invalid.md"), []byte(invalidTask), 0644)
 
 	// Non-md file (should be skipped)
-	os.WriteFile(filepath.Join(tasksDir, "readme.txt"), []byte("text file"), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "readme.txt"), []byte("text file"), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	tasks, err := mgr.Scan()
@@ -375,10 +375,10 @@ func TestManager_GetBlockingTasks(t *testing.T) {
 func TestManager_UpdateStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
-	os.WriteFile(taskPath, []byte(`---
+	_ = os.WriteFile(taskPath, []byte(`---
 id: TASK-001
 title: Test
 role: backend
@@ -389,7 +389,7 @@ Content
 `), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	// Update status
 	err := mgr.UpdateStatus("TASK-001", StatusInProgress)
@@ -398,15 +398,21 @@ Content
 	}
 
 	// Verify in memory
-	task, _ := mgr.Get("TASK-001")
+	task, err := mgr.Get("TASK-001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
 	if task.Status != StatusInProgress {
 		t.Errorf("Status = %v, want in_progress", task.Status)
 	}
 
 	// Verify on disk (re-scan)
 	mgr2 := NewManager(&Config{ProjectRoot: dir})
-	mgr2.Scan()
-	task2, _ := mgr2.Get("TASK-001")
+	_, _ = mgr2.Scan()
+	task2, err := mgr2.Get("TASK-001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
 	if task2.Status != StatusInProgress {
 		t.Errorf("Persisted status = %v, want in_progress", task2.Status)
 	}
@@ -424,10 +430,10 @@ func TestManager_UpdateStatus_NotFound(t *testing.T) {
 func TestManager_Assign(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
-	os.WriteFile(taskPath, []byte(`---
+	_ = os.WriteFile(taskPath, []byte(`---
 id: TASK-001
 title: Test
 role: backend
@@ -438,14 +444,17 @@ Content
 `), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	err := mgr.Assign("TASK-001", "agent-1")
 	if err != nil {
 		t.Fatalf("Assign() error: %v", err)
 	}
 
-	task, _ := mgr.Get("TASK-001")
+	task, err := mgr.Get("TASK-001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
 	if task.AssignedTo != "agent-1" {
 		t.Errorf("AssignedTo = %q, want agent-1", task.AssignedTo)
 	}
@@ -470,10 +479,10 @@ func TestManager_Assign_NotAvailable(t *testing.T) {
 func TestManager_Unassign(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
-	os.WriteFile(taskPath, []byte(`---
+	_ = os.WriteFile(taskPath, []byte(`---
 id: TASK-001
 title: Test
 role: backend
@@ -485,14 +494,17 @@ Content
 `), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	err := mgr.Unassign("TASK-001")
 	if err != nil {
 		t.Fatalf("Unassign() error: %v", err)
 	}
 
-	task, _ := mgr.Get("TASK-001")
+	task, err := mgr.Get("TASK-001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
 	if task.AssignedTo != "" {
 		t.Errorf("AssignedTo = %q, want empty", task.AssignedTo)
 	}
@@ -504,10 +516,10 @@ Content
 func TestManager_Unassign_KeepsCompleteStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
-	os.WriteFile(taskPath, []byte(`---
+	_ = os.WriteFile(taskPath, []byte(`---
 id: TASK-001
 title: Test
 role: backend
@@ -519,14 +531,17 @@ Content
 `), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	err := mgr.Unassign("TASK-001")
 	if err != nil {
 		t.Fatalf("Unassign() error: %v", err)
 	}
 
-	task, _ := mgr.Get("TASK-001")
+	task, err := mgr.Get("TASK-001")
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
 	if task.Status != StatusComplete {
 		t.Errorf("Status = %s, want complete (should not change)", task.Status)
 	}
@@ -535,10 +550,10 @@ Content
 func TestManager_UpdateBlockedStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0755)
 
 	// T1 is pending with no deps
-	os.WriteFile(filepath.Join(tasksDir, "T1.md"), []byte(`---
+	_ = os.WriteFile(filepath.Join(tasksDir, "T1.md"), []byte(`---
 id: T1
 title: Task 1
 role: backend
@@ -548,7 +563,7 @@ Content
 `), 0644)
 
 	// T2 depends on T1 (should become blocked)
-	os.WriteFile(filepath.Join(tasksDir, "T2.md"), []byte(`---
+	_ = os.WriteFile(filepath.Join(tasksDir, "T2.md"), []byte(`---
 id: T2
 title: Task 2
 role: backend
@@ -559,7 +574,7 @@ Content
 `), 0644)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	err := mgr.UpdateBlockedStatus()
 	if err != nil {
@@ -567,23 +582,32 @@ Content
 	}
 
 	// T1 should still be pending
-	t1, _ := mgr.Get("T1")
+	t1, err := mgr.Get("T1")
+	if err != nil {
+		t.Fatalf("Get(T1) error: %v", err)
+	}
 	if t1.Status != StatusPending {
 		t.Errorf("T1 status = %s, want pending", t1.Status)
 	}
 
 	// T2 should be blocked
-	t2, _ := mgr.Get("T2")
+	t2, err := mgr.Get("T2")
+	if err != nil {
+		t.Fatalf("Get(T2) error: %v", err)
+	}
 	if t2.Status != StatusBlocked {
 		t.Errorf("T2 status = %s, want blocked", t2.Status)
 	}
 
 	// Now complete T1 and update again
-	mgr.UpdateStatus("T1", StatusComplete)
-	mgr.UpdateBlockedStatus()
+	_ = mgr.UpdateStatus("T1", StatusComplete)
+	_ = mgr.UpdateBlockedStatus()
 
 	// T2 should now be pending
-	t2, _ = mgr.Get("T2")
+	t2, err = mgr.Get("T2")
+	if err != nil {
+		t.Fatalf("Get(T2) error: %v", err)
+	}
 	if t2.Status != StatusPending {
 		t.Errorf("T2 status after unblock = %s, want pending", t2.Status)
 	}

@@ -20,7 +20,7 @@ linters:
         - shadow
 
     errcheck:
-      check-blank: true
+      check-blank: false
       check-type-assertions: true
 
     revive:

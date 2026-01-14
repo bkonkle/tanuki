@@ -122,8 +122,10 @@ func (m *Manager) copyFile(src, dst string) error {
 		return fmt.Errorf("create parent directory: %w", err)
 	}
 
-	// Remove existing file/symlink if present
-	os.Remove(dst)
+	// Remove existing file/symlink if present (ignore error if doesn't exist)
+	if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove existing: %w", err)
+	}
 
 	if m.useSymlinks {
 		// Create symlink
@@ -132,27 +134,47 @@ func (m *Manager) copyFile(src, dst string) error {
 		}
 	} else {
 		// Copy file
-		srcFile, err := os.Open(src)
-		if err != nil {
-			return fmt.Errorf("open source: %w", err)
+		if err := copyFileContents(src, dst); err != nil {
+			return err
 		}
-		defer srcFile.Close()
+	}
 
-		dstFile, err := os.Create(dst)
-		if err != nil {
-			return fmt.Errorf("create destination: %w", err)
-		}
-		defer dstFile.Close()
+	return nil
+}
 
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
-			return fmt.Errorf("copy contents: %w", err)
+// copyFileContents copies file contents and permissions from src to dst.
+func copyFileContents(src, dst string) (err error) {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer func() {
+		if cerr := srcFile.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close source: %w", cerr)
 		}
+	}()
 
-		// Copy permissions
-		srcInfo, _ := srcFile.Stat()
-		if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
-			return fmt.Errorf("set permissions: %w", err)
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("create destination: %w", err)
+	}
+	defer func() {
+		if cerr := dstFile.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close destination: %w", cerr)
 		}
+	}()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("copy contents: %w", err)
+	}
+
+	// Copy permissions
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return fmt.Errorf("stat source: %w", err)
+	}
+	if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
+		return fmt.Errorf("set permissions: %w", err)
 	}
 
 	return nil
@@ -178,7 +200,10 @@ func (m *Manager) ListContextFiles(worktreePath string) ([]string, error) {
 			return err
 		}
 		if !info.IsDir() {
-			relPath, _ := filepath.Rel(contextDir, path)
+			relPath, err := filepath.Rel(contextDir, path)
+			if err != nil {
+				return nil // skip files we can't get relative path for
+			}
 			files = append(files, relPath)
 		}
 		return nil

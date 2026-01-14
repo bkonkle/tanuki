@@ -379,7 +379,10 @@ func TestBalancerWithStrategy_RoundRobin(t *testing.T) {
 	// Should cycle through agents
 	names := make([]string, 3)
 	for i := 0; i < 3; i++ {
-		agent, _ := b.AssignTaskWithStrategy(task, agents)
+		agent, err := b.AssignTaskWithStrategy(task, agents)
+		if err != nil {
+			t.Fatalf("AssignTaskWithStrategy failed: %v", err)
+		}
 		names[i] = agent.Name
 	}
 

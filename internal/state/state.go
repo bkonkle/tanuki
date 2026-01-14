@@ -259,7 +259,7 @@ func (m *FileStateManager) Save(state *State) error {
 
 	// Atomic rename
 	if err := os.Rename(tmpPath, m.path); err != nil {
-		os.Remove(tmpPath) // Clean up temp file
+		_ = os.Remove(tmpPath) // Clean up temp file
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
@@ -423,7 +423,7 @@ func (m *FileStateManager) saveToDisk() error {
 
 	// Atomic rename
 	if err := os.Rename(tmpPath, m.path); err != nil {
-		os.Remove(tmpPath) // Clean up temp file
+		_ = os.Remove(tmpPath) // Clean up temp file
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 

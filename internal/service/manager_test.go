@@ -56,8 +56,8 @@ func (m *mockDockerManager) ContainerRunning(containerID string) bool {
 func cleanupService(t *testing.T, name string) {
 	t.Helper()
 	containerName := ContainerName(name)
-	exec.Command("docker", "stop", containerName).Run()
-	exec.Command("docker", "rm", "-f", containerName).Run()
+	_ = exec.Command("docker", "stop", containerName).Run()
+	_ = exec.Command("docker", "rm", "-f", containerName).Run()
 }
 
 func TestNewManager(t *testing.T) {
@@ -154,9 +154,12 @@ func TestDefaultRedisConfig(t *testing.T) {
 }
 
 func TestGetStatus_NotFound(t *testing.T) {
-	mgr, _ := NewManager(nil, "", newMockDockerManager())
+	mgr, err := NewManager(nil, "", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
-	_, err := mgr.GetStatus("nonexistent")
+	_, err = mgr.GetStatus("nonexistent")
 	if err == nil {
 		t.Error("Expected error for nonexistent service")
 	}
@@ -170,7 +173,10 @@ func TestGetConnectionInfo(t *testing.T) {
 	cfg.Enabled = true
 	services := map[string]*Config{"postgres": cfg}
 
-	mgr, _ := NewManager(services, "test-net", newMockDockerManager())
+	mgr, err := NewManager(services, "test-net", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
 	conn, err := mgr.GetConnectionInfo("postgres")
 	if err != nil {
@@ -198,9 +204,12 @@ func TestGetConnectionInfo(t *testing.T) {
 }
 
 func TestGetConnectionInfo_NotFound(t *testing.T) {
-	mgr, _ := NewManager(nil, "", newMockDockerManager())
+	mgr, err := NewManager(nil, "", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
-	_, err := mgr.GetConnectionInfo("nonexistent")
+	_, err = mgr.GetConnectionInfo("nonexistent")
 	if err == nil {
 		t.Error("Expected error for nonexistent service")
 	}
@@ -211,9 +220,12 @@ func TestGetConnectionInfo_NotEnabled(t *testing.T) {
 	cfg.Enabled = false
 	services := map[string]*Config{"postgres": cfg}
 
-	mgr, _ := NewManager(services, "test-net", newMockDockerManager())
+	mgr, err := NewManager(services, "test-net", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
-	_, err := mgr.GetConnectionInfo("postgres")
+	_, err = mgr.GetConnectionInfo("postgres")
 	if err == nil {
 		t.Error("Expected error for disabled service")
 	}
@@ -232,7 +244,10 @@ func TestGetAllConnections(t *testing.T) {
 		"disabled": disabledCfg,
 	}
 
-	mgr, _ := NewManager(services, "test-net", newMockDockerManager())
+	mgr, err := NewManager(services, "test-net", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
 	conns := mgr.GetAllConnections()
 
@@ -260,7 +275,10 @@ func TestGetAllStatus(t *testing.T) {
 		"redis":    redisCfg,
 	}
 
-	mgr, _ := NewManager(services, "test-net", newMockDockerManager())
+	mgr, err := NewManager(services, "test-net", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
 	statuses := mgr.GetAllStatus()
 
@@ -270,7 +288,10 @@ func TestGetAllStatus(t *testing.T) {
 }
 
 func TestIsHealthy_NotFound(t *testing.T) {
-	mgr, _ := NewManager(nil, "", newMockDockerManager())
+	mgr, err := NewManager(nil, "", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
 	if mgr.IsHealthy("nonexistent") {
 		t.Error("IsHealthy should return false for nonexistent service")
@@ -278,18 +299,24 @@ func TestIsHealthy_NotFound(t *testing.T) {
 }
 
 func TestStartService_NotFound(t *testing.T) {
-	mgr, _ := NewManager(nil, "", newMockDockerManager())
+	mgr, err := NewManager(nil, "", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
-	err := mgr.StartService("nonexistent")
+	err = mgr.StartService("nonexistent")
 	if err == nil {
 		t.Error("Expected error for nonexistent service")
 	}
 }
 
 func TestStopService_NotFound(t *testing.T) {
-	mgr, _ := NewManager(nil, "", newMockDockerManager())
+	mgr, err := NewManager(nil, "", newMockDockerManager())
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
 
-	err := mgr.StopService("nonexistent")
+	err = mgr.StopService("nonexistent")
 	if err == nil {
 		t.Error("Expected error for nonexistent service")
 	}
@@ -308,7 +335,7 @@ func TestStartService_Integration(t *testing.T) {
 	services := map[string]*Config{"redis": cfg}
 
 	// Ensure image is available
-	exec.Command("docker", "pull", "redis:7").Run()
+	_ = exec.Command("docker", "pull", "redis:7").Run()
 
 	mgr, err := NewManager(services, "tanuki-test-net", nil)
 	if err != nil {
@@ -316,8 +343,8 @@ func TestStartService_Integration(t *testing.T) {
 	}
 
 	// Ensure network exists
-	exec.Command("docker", "network", "create", "tanuki-test-net").Run()
-	defer exec.Command("docker", "network", "rm", "tanuki-test-net").Run()
+	_ = exec.Command("docker", "network", "create", "tanuki-test-net").Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", "tanuki-test-net").Run() }()
 
 	// Clean up before and after
 	cleanupService(t, "redis")
@@ -349,15 +376,15 @@ func TestStopService_Integration(t *testing.T) {
 	cfg.Enabled = true
 	services := map[string]*Config{"redis": cfg}
 
-	exec.Command("docker", "pull", "redis:7").Run()
+	_ = exec.Command("docker", "pull", "redis:7").Run()
 
 	mgr, err := NewManager(services, "tanuki-test-net", nil)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
 
-	exec.Command("docker", "network", "create", "tanuki-test-net").Run()
-	defer exec.Command("docker", "network", "rm", "tanuki-test-net").Run()
+	_ = exec.Command("docker", "network", "create", "tanuki-test-net").Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", "tanuki-test-net").Run() }()
 
 	cleanupService(t, "redis")
 	defer cleanupService(t, "redis")
@@ -409,15 +436,15 @@ func TestStartStopServices_Integration(t *testing.T) {
 		"disabled": cfg3,
 	}
 
-	exec.Command("docker", "pull", "redis:7").Run()
+	_ = exec.Command("docker", "pull", "redis:7").Run()
 
 	mgr, err := NewManager(services, "tanuki-test-net", nil)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
 
-	exec.Command("docker", "network", "create", "tanuki-test-net").Run()
-	defer exec.Command("docker", "network", "rm", "tanuki-test-net").Run()
+	_ = exec.Command("docker", "network", "create", "tanuki-test-net").Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", "tanuki-test-net").Run() }()
 
 	cleanupService(t, "test1")
 	cleanupService(t, "test2")
@@ -471,15 +498,15 @@ func TestStartService_AlreadyRunning_Integration(t *testing.T) {
 	cfg.Enabled = true
 	services := map[string]*Config{"redis": cfg}
 
-	exec.Command("docker", "pull", "redis:7").Run()
+	_ = exec.Command("docker", "pull", "redis:7").Run()
 
 	mgr, err := NewManager(services, "tanuki-test-net", nil)
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
 
-	exec.Command("docker", "network", "create", "tanuki-test-net").Run()
-	defer exec.Command("docker", "network", "rm", "tanuki-test-net").Run()
+	_ = exec.Command("docker", "network", "create", "tanuki-test-net").Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", "tanuki-test-net").Run() }()
 
 	cleanupService(t, "redis")
 	defer cleanupService(t, "redis")
