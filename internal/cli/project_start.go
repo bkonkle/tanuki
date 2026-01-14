@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bkonkle/tanuki/internal/agent"
@@ -224,24 +225,35 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	// Start the workstream runners in background goroutines
+	// Start the workstream runners and wait for completion
 	if len(runners) > 0 {
 		fmt.Printf("Starting %d workstream runner(s)...\n", len(runners))
+		fmt.Println()
+
+		var wg sync.WaitGroup
 		for key, runner := range runners {
+			wg.Add(1)
 			go func(k workstreamKey, r *agent.WorkstreamRunner) {
+				defer wg.Done()
 				if err := r.Run(); err != nil {
 					log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
 				}
 			}(key, runner)
 		}
-		fmt.Println()
-	}
 
-	fmt.Println("Project started!")
-	if projectName != "" {
-		fmt.Printf("Monitor with: tanuki project status %s\n", projectName)
+		fmt.Println("Project running. Press Ctrl+C to stop.")
+		if projectName != "" {
+			fmt.Printf("Monitor in another terminal with: tanuki project status %s\n", projectName)
+		} else {
+			fmt.Println("Monitor in another terminal with: tanuki project status")
+		}
+		fmt.Println()
+
+		// Wait for all workstream runners to complete
+		wg.Wait()
+		fmt.Println("All workstreams complete!")
 	} else {
-		fmt.Println("Monitor with: tanuki project status")
+		fmt.Println("No workstream runners started.")
 	}
 
 	return nil
