@@ -13,7 +13,7 @@ func TestBuildWorkstreamAgentName(t *testing.T) {
 	}{
 		{"auth-feature", "oauth", "auth-feature-oauth"},
 		{"api-refactor", "main", "api-refactor-main"},
-		{"", "standalone", "standalone"},          // Root task
+		{"", "standalone", "standalone"},                    // Root task
 		{"My Project", "Feature A", "my-project-feature-a"}, // Spaces converted
 	}
 

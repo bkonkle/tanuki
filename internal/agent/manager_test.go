@@ -198,8 +198,8 @@ func (m *mockDockerManager) GetResourceUsage(containerID string) (*ResourceUsage
 }
 
 type mockExecutor struct {
-	runFn        func(containerID string, prompt string, opts executor.ExecuteOptions) (*executor.ExecutionResult, error)
-	runFollowFn  func(containerID string, prompt string, opts executor.ExecuteOptions, output io.Writer) (*executor.ExecutionResult, error)
+	runFn            func(containerID string, prompt string, opts executor.ExecuteOptions) (*executor.ExecutionResult, error)
+	runFollowFn      func(containerID string, prompt string, opts executor.ExecuteOptions, output io.Writer) (*executor.ExecutionResult, error)
 	checkContainerFn func(containerID string) error
 }
 
@@ -233,11 +233,11 @@ func (m *mockExecutor) CheckContainer(containerID string) error {
 }
 
 type mockStateManager struct {
-	agents      map[string]*Agent
-	loadFn      func() (*State, error)
-	saveFn      func(state *State) error
-	getAgentFn  func(name string) (*Agent, error)
-	setAgentFn  func(agent *Agent) error
+	agents        map[string]*Agent
+	loadFn        func() (*State, error)
+	saveFn        func(state *State) error
+	getAgentFn    func(name string) (*Agent, error)
+	setAgentFn    func(agent *Agent) error
 	removeAgentFn func(name string) error
 	listAgentsFn  func() ([]*Agent, error)
 }
@@ -391,13 +391,13 @@ func TestSpawn_InvalidName(t *testing.T) {
 	manager, _ := NewManager(cfg, git, docker, state, executor)
 
 	invalidNames := []string{
-		"A",           // Too short
-		"Agent",       // Capital letter
-		"agent_name",  // Underscore
-		"agent name",  // Space
-		"-agent",      // Starts with hyphen
-		"agent-",      // Ends with hyphen
-		"a",           // Single character
+		"A",          // Too short
+		"Agent",      // Capital letter
+		"agent_name", // Underscore
+		"agent name", // Space
+		"-agent",     // Starts with hyphen
+		"agent-",     // Ends with hyphen
+		"a",          // Single character
 	}
 
 	for _, name := range invalidNames {
@@ -559,7 +559,7 @@ func TestRemove_Working_WithoutForce(t *testing.T) {
 	// Create agent and set to working
 	agent, _ := manager.Spawn("test-agent", SpawnOptions{})
 	agent.Status = "working"
-	state.SetAgent(agent)
+	_ = state.SetAgent(agent)
 
 	// Try to remove without force
 	err := manager.Remove("test-agent", RemoveOptions{Force: false})
@@ -583,7 +583,7 @@ func TestRemove_Working_WithForce(t *testing.T) {
 	// Create agent and set to working
 	agent, _ := manager.Spawn("test-agent", SpawnOptions{})
 	agent.Status = "working"
-	state.SetAgent(agent)
+	_ = state.SetAgent(agent)
 
 	// Remove with force
 	err := manager.Remove("test-agent", RemoveOptions{Force: true})
@@ -639,9 +639,9 @@ func TestList(t *testing.T) {
 	manager, _ := NewManager(cfg, git, docker, state, executor)
 
 	// Create multiple agents
-	manager.Spawn("agent-01", SpawnOptions{})
-	manager.Spawn("agent-02", SpawnOptions{})
-	manager.Spawn("agent-03", SpawnOptions{})
+	_, _ = manager.Spawn("agent-01", SpawnOptions{})
+	_, _ = manager.Spawn("agent-02", SpawnOptions{})
+	_, _ = manager.Spawn("agent-03", SpawnOptions{})
 
 	agents, err := manager.List()
 	if err != nil {
@@ -706,7 +706,7 @@ func TestReconcile(t *testing.T) {
 	// Create agent with working status
 	agent, _ := manager.Spawn("test-agent", SpawnOptions{})
 	agent.Status = "working"
-	state.SetAgent(agent)
+	_ = state.SetAgent(agent)
 
 	// Reconcile (container not running, should update status)
 	err := manager.Reconcile()
@@ -735,20 +735,20 @@ func TestReconcile(t *testing.T) {
 
 func TestValidateAgentName(t *testing.T) {
 	tests := []struct {
-		name    string
-		valid   bool
+		name  string
+		valid bool
 	}{
 		{"test-agent", true},
 		{"agent01", true},
 		{"a1", true},
 		{"my-agent-123", true},
-		{"a", false},                // Too short
-		{"Agent", false},            // Capital letter
-		{"-agent", false},           // Starts with hyphen
-		{"agent-", false},           // Ends with hyphen
-		{"agent_name", false},       // Underscore
-		{"agent name", false},       // Space
-		{"agent.name", false},       // Dot
+		{"a", false},                      // Too short
+		{"Agent", false},                  // Capital letter
+		{"-agent", false},                 // Starts with hyphen
+		{"agent-", false},                 // Ends with hyphen
+		{"agent_name", false},             // Underscore
+		{"agent name", false},             // Space
+		{"agent.name", false},             // Dot
 		{string(make([]byte, 64)), false}, // Too long
 	}
 
@@ -788,7 +788,7 @@ func TestIsWorking(t *testing.T) {
 
 	// Set to working
 	agent.Status = "working"
-	state.SetAgent(agent)
+	_ = state.SetAgent(agent)
 
 	// Check working
 	working, err = manager.IsWorking("test-agent")
@@ -857,7 +857,7 @@ func TestAgent_UpdatedAt(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Stop agent (should update UpdatedAt)
-	manager.Stop("test-agent")
+	_ = manager.Stop("test-agent")
 	agent, _ = state.GetAgent("test-agent")
 
 	if agent.CreatedAt != createdAt {

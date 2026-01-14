@@ -260,13 +260,13 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 	var roleInfo *RoleInfo
 	if opts.Role != "" {
 		if m.roleManager == nil {
-			m.git.RemoveWorktree(name, true) // Rollback
+			_ = m.git.RemoveWorktree(name, true) // Rollback
 			return nil, fmt.Errorf("role specified but role manager not configured")
 		}
 
 		roleInfo, err = m.roleManager.GetRoleInfo(opts.Role)
 		if err != nil {
-			m.git.RemoveWorktree(name, true) // Rollback
+			_ = m.git.RemoveWorktree(name, true) // Rollback
 			return nil, fmt.Errorf("failed to get role %q: %w", opts.Role, err)
 		}
 
@@ -275,13 +275,13 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 			// Get project root from current working directory
 			projectRoot, err := os.Getwd()
 			if err != nil {
-				m.git.RemoveWorktree(name, true) // Rollback
+				_ = m.git.RemoveWorktree(name, true) // Rollback
 				return nil, fmt.Errorf("failed to get project root: %w", err)
 			}
 			contextMgr := context.NewManager(projectRoot, false)
 			result, err := contextMgr.CopyContextFiles(worktreePath, roleInfo.ContextFiles)
 			if err != nil {
-				m.git.RemoveWorktree(name, true) // Rollback
+				_ = m.git.RemoveWorktree(name, true) // Rollback
 				return nil, fmt.Errorf("failed to copy context files: %w", err)
 			}
 			// Log warnings but don't fail for missing context files
@@ -290,7 +290,7 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 
 		// Generate CLAUDE.md with role system prompt
 		if err := m.generateClaudeMD(worktreePath, roleInfo); err != nil {
-			m.git.RemoveWorktree(name, true) // Rollback
+			_ = m.git.RemoveWorktree(name, true) // Rollback
 			return nil, fmt.Errorf("failed to generate CLAUDE.md: %w", err)
 		}
 	}
@@ -312,14 +312,14 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 	}
 	containerID, err := m.docker.CreateAgentContainerWithOptions(name, worktreePath, containerOpts)
 	if err != nil {
-		m.git.RemoveWorktree(name, true) // Rollback
+		_ = m.git.RemoveWorktree(name, true) // Rollback
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
 	// 7. Start container (rollback both on failure)
 	if err := m.docker.StartContainer(containerID); err != nil {
-		m.docker.RemoveContainer(containerID) // Rollback
-		m.git.RemoveWorktree(name, true)      // Rollback
+		_ = m.docker.RemoveContainer(containerID) // Rollback
+		_ = m.git.RemoveWorktree(name, true)      // Rollback
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
@@ -344,9 +344,9 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 
 	if err := m.state.SetAgent(agent); err != nil {
 		// Rollback everything
-		m.docker.StopContainer(containerID)
-		m.docker.RemoveContainer(containerID)
-		m.git.RemoveWorktree(name, true)
+		_ = m.docker.StopContainer(containerID)
+		_ = m.docker.RemoveContainer(containerID)
+		_ = m.git.RemoveWorktree(name, true)
 		return nil, fmt.Errorf("failed to save state: %w", err)
 	}
 
