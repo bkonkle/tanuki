@@ -21,18 +21,27 @@ type Manager struct {
 // Config holds configuration for the TaskManager.
 type Config struct {
 	ProjectRoot string
+	// TasksDir is the directory for task files, relative to ProjectRoot.
+	// Defaults to "tasks" if empty.
+	TasksDir string
 }
 
 // NewManager creates a new TaskManager.
 func NewManager(cfg *Config) *Manager {
+	tasksDir := cfg.TasksDir
+	if tasksDir == "" {
+		tasksDir = "tasks"
+	}
 	return &Manager{
 		config:   cfg,
-		tasksDir: filepath.Join(cfg.ProjectRoot, ".tanuki", "tasks"),
+		tasksDir: filepath.Join(cfg.ProjectRoot, tasksDir),
 		tasks:    make(map[string]*Task),
 	}
 }
 
-// Scan loads all task files from .tanuki/tasks/.
+// Scan loads all task files from the configured tasks directory.
+// It supports both flat structure (tasks/*.md) and project folder structure
+// (tasks/project-name/*.md where project-name contains a project.md).
 // Invalid task files are logged as warnings but don't stop the scan.
 func (m *Manager) Scan() ([]*Task, error) {
 	m.mu.Lock()
@@ -55,7 +64,25 @@ func (m *Manager) Scan() ([]*Task, error) {
 	var parseErrors []error
 
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+		if entry.IsDir() {
+			// Check if it's a project folder (contains project.md)
+			projectPath := filepath.Join(m.tasksDir, entry.Name(), "project.md")
+			if _, err := os.Stat(projectPath); err == nil {
+				// It's a project folder - scan it for tasks
+				projectName := entry.Name()
+				projectTasks, errs := m.scanProjectDir(filepath.Join(m.tasksDir, entry.Name()), projectName)
+				tasks = append(tasks, projectTasks...)
+				parseErrors = append(parseErrors, errs...)
+			}
+			continue
+		}
+
+		if filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+
+		// Skip project.md in root (shouldn't exist, but be safe)
+		if entry.Name() == "project.md" {
 			continue
 		}
 
@@ -67,6 +94,8 @@ func (m *Manager) Scan() ([]*Task, error) {
 			continue
 		}
 
+		// Root tasks have no project
+		task.Project = ""
 		m.tasks[task.ID] = task
 		tasks = append(tasks, task)
 	}
@@ -77,6 +106,43 @@ func (m *Manager) Scan() ([]*Task, error) {
 	}
 
 	return tasks, nil
+}
+
+// scanProjectDir scans a project folder for task files.
+// The projectName is set on each task's Project field.
+func (m *Manager) scanProjectDir(dir, projectName string) ([]*Task, []error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, []error{fmt.Errorf("read project directory %s: %w", projectName, err)}
+	}
+
+	var tasks []*Task
+	var parseErrors []error
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
+			continue
+		}
+
+		// Skip project.md - it's project metadata, not a task
+		if entry.Name() == "project.md" {
+			continue
+		}
+
+		path := filepath.Join(dir, entry.Name())
+		task, err := ParseFile(path)
+		if err != nil {
+			parseErrors = append(parseErrors, fmt.Errorf("parse %s/%s: %w", projectName, entry.Name(), err))
+			continue
+		}
+
+		// Set project name on task
+		task.Project = projectName
+		m.tasks[task.ID] = task
+		tasks = append(tasks, task)
+	}
+
+	return tasks, parseErrors
 }
 
 // Get returns a task by ID.
@@ -472,4 +538,107 @@ func (m *Manager) Stats() *TaskStats {
 // TasksDir returns the path to the tasks directory.
 func (m *Manager) TasksDir() string {
 	return m.tasksDir
+}
+
+// GetProjects returns all unique project names from scanned tasks.
+// Returns an empty slice if no project folders are used.
+func (m *Manager) GetProjects() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	projects := make(map[string]bool)
+	for _, t := range m.tasks {
+		if t.Project != "" {
+			projects[t.Project] = true
+		}
+	}
+
+	result := make([]string, 0, len(projects))
+	for p := range projects {
+		result = append(result, p)
+	}
+
+	sort.Strings(result)
+	return result
+}
+
+// GetByProject returns all tasks belonging to a specific project.
+// Tasks are sorted by priority, then by ID.
+func (m *Manager) GetByProject(project string) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.Project == project {
+			tasks = append(tasks, t)
+		}
+	}
+
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Priority.Order() != tasks[j].Priority.Order() {
+			return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+
+	return tasks
+}
+
+// GetProjectWorkstreams returns all unique workstreams within a project for a role.
+// Returns workstreams sorted by priority.
+func (m *Manager) GetProjectWorkstreams(project, role string) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	workstreamPriority := make(map[string]int)
+
+	for _, t := range m.tasks {
+		if t.Project != project || t.Role != role {
+			continue
+		}
+		ws := t.GetWorkstream()
+		currentPriority, exists := workstreamPriority[ws]
+		taskPriority := t.Priority.Order()
+
+		if !exists || taskPriority < currentPriority {
+			workstreamPriority[ws] = taskPriority
+		}
+	}
+
+	workstreams := make([]string, 0, len(workstreamPriority))
+	for ws := range workstreamPriority {
+		workstreams = append(workstreams, ws)
+	}
+
+	sort.Slice(workstreams, func(i, j int) bool {
+		if workstreamPriority[workstreams[i]] != workstreamPriority[workstreams[j]] {
+			return workstreamPriority[workstreams[i]] < workstreamPriority[workstreams[j]]
+		}
+		return workstreams[i] < workstreams[j]
+	})
+
+	return workstreams
+}
+
+// GetByProjectAndWorkstream returns tasks for a specific project, role, and workstream.
+func (m *Manager) GetByProjectAndWorkstream(project, role, workstream string) []*Task {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var tasks []*Task
+	for _, t := range m.tasks {
+		if t.Project == project && t.Role == role && t.GetWorkstream() == workstream {
+			tasks = append(tasks, t)
+		}
+	}
+
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Priority.Order() != tasks[j].Priority.Order() {
+			return tasks[i].Priority.Order() < tasks[j].Priority.Order()
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+
+	return tasks
 }

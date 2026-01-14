@@ -3,24 +3,36 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/bkonkle/tanuki/internal/agent"
+	"github.com/bkonkle/tanuki/internal/config"
+	"github.com/bkonkle/tanuki/internal/docker"
+	"github.com/bkonkle/tanuki/internal/executor"
+	"github.com/bkonkle/tanuki/internal/git"
+	"github.com/bkonkle/tanuki/internal/project"
+	"github.com/bkonkle/tanuki/internal/role"
+	"github.com/bkonkle/tanuki/internal/state"
 	"github.com/bkonkle/tanuki/internal/task"
 	"github.com/spf13/cobra"
 )
 
 var projectStartCmd = &cobra.Command{
-	Use:   "start",
+	Use:   "start [name]",
 	Short: "Start agents and assign tasks",
-	Long: `Spawns agents for each role needed and assigns pending tasks.
+	Long: `Spawns agents for each workstream and assigns pending tasks.
 
-By default, spawns one agent per role. Use --agents-per-role to spawn more.
+Without a name argument, starts agents for all tasks in the tasks directory.
+
+With a name argument, starts agents only for the specified project folder.
+
+Agent naming follows the pattern: {project}-{workstream} (e.g., "auth-feature-main")
 
 This command:
-  1. Scans .tanuki/tasks/ for task files
-  2. Determines which roles are needed
-  3. Spawns agents for each role
+  1. Scans tasks/ directory for task files
+  2. Determines which roles and workstreams are needed
+  3. Spawns agents for each workstream
   4. Assigns pending tasks to idle agents
   5. Starts task execution
 
@@ -29,7 +41,6 @@ Use --dry-run to see what would happen without making changes.`,
 }
 
 func init() {
-	projectStartCmd.Flags().IntP("agents-per-role", "n", 1, "Number of agents per role")
 	projectStartCmd.Flags().Bool("dry-run", false, "Show what would happen without doing it")
 	projectCmd.AddCommand(projectStartCmd)
 }
@@ -40,10 +51,9 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("get working directory: %w", err)
 	}
 
-	agentsPerRole, _ := cmd.Flags().GetInt("agents-per-role")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-	taskDir := filepath.Join(projectRoot, ".tanuki", "tasks")
+	taskDir := getTasksDir(projectRoot)
 
 	// Check if task directory exists
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
@@ -51,25 +61,52 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Scan tasks
-	fmt.Println("Scanning tasks...")
-	taskMgr := newMockTaskManager(taskDir)
-	tasks, err := taskMgr.Scan()
+	// Use the real task manager
+	taskMgr := task.NewManager(&task.Config{ProjectRoot: projectRoot})
+	allTasks, err := taskMgr.Scan()
 	if err != nil {
 		return fmt.Errorf("scan tasks: %w", err)
 	}
 
-	if len(tasks) == 0 {
+	if len(allTasks) == 0 {
 		fmt.Println("No tasks found. Run: tanuki project init")
 		return nil
 	}
 
-	// Determine roles needed
-	rolesNeeded := make(map[string]int)
+	// Filter by project name if provided
+	var projectName string
+	var tasks []*task.Task
+	if len(args) > 0 {
+		projectName = args[0]
+		tasks = taskMgr.GetByProject(projectName)
+		if len(tasks) == 0 {
+			fmt.Printf("No tasks found for project '%s'.\n", projectName)
+			fmt.Println("Run: tanuki project list")
+			return nil
+		}
+		fmt.Printf("Starting project: %s\n", projectName)
+	} else {
+		tasks = allTasks
+		fmt.Println("Scanning tasks...")
+	}
+
+	// Collect workstreams by role
+	type workstreamKey struct {
+		project    string
+		role       string
+		workstream string
+	}
+	workstreams := make(map[workstreamKey]int) // count of pending tasks
 	pendingTasks := 0
+
 	for _, t := range tasks {
 		if t.Status == task.StatusPending || t.Status == task.StatusBlocked {
-			rolesNeeded[t.Role]++
+			key := workstreamKey{
+				project:    t.Project,
+				role:       t.Role,
+				workstream: t.GetWorkstream(),
+			}
+			workstreams[key]++
 			pendingTasks++
 		}
 	}
@@ -79,50 +116,62 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("  Found %d tasks across %d roles\n", len(tasks), len(rolesNeeded))
+	// Count unique roles
+	roles := make(map[string]bool)
+	for key := range workstreams {
+		roles[key.role] = true
+	}
+
+	fmt.Printf("  Found %d tasks across %d roles, %d workstreams\n",
+		len(tasks), len(roles), len(workstreams))
 	fmt.Println()
 
 	if dryRun {
-		fmt.Println("[DRY RUN] Would spawn:")
-		for role, count := range rolesNeeded {
-			fmt.Printf("  %s-agent (role: %s) - %d tasks\n", role, role, count)
+		fmt.Println("[DRY RUN] Would spawn agents:")
+		for key, count := range workstreams {
+			agentName := buildAgentName(key.project, key.workstream)
+			branchName := project.WorktreeBranch(key.project, key.workstream)
+			fmt.Printf("  %s (role: %s) - %d tasks\n", agentName, key.role, count)
+			fmt.Printf("    Branch: %s\n", branchName)
 		}
 		return nil
 	}
 
-	// Spawn agents for each role
+	// Create agent manager and dependencies
+	agentMgr, err := createAgentManager(projectRoot)
+	if err != nil {
+		return fmt.Errorf("create agent manager: %w", err)
+	}
+
+	// Create workstream orchestrator
+	wsConfig := agent.DefaultWorkstreamConfig()
+	orchestrator := agent.NewWorkstreamOrchestrator(agentMgr, taskMgr, wsConfig)
+
+	// Set role concurrency limits (default to 1 per role)
+	for key := range workstreams {
+		orchestrator.SetRoleConcurrency(key.role, 1)
+	}
+
+	// Spawn agents for each workstream
 	fmt.Println("Spawning agents...")
-	for role := range rolesNeeded {
-		for i := 0; i < agentsPerRole; i++ {
-			agentName := role + "-agent"
-			if agentsPerRole > 1 {
-				agentName = fmt.Sprintf("%s-agent-%d", role, i+1)
-			}
+	runners := make(map[workstreamKey]*agent.WorkstreamRunner)
 
-			// In the real implementation, this will use the agent manager
-			// For now, we output what would happen
-			fmt.Printf("  Spawning %s (role: %s)...\n", agentName, role)
+	for key := range workstreams {
+		agentName := buildAgentName(key.project, key.workstream)
 
-			// TODO: Integrate with agent.Manager
-			// existing, _ := agentMgr.Get(agentName)
-			// if existing != nil {
-			//     if existing.Status == "stopped" {
-			//         fmt.Printf("  Starting existing agent %s...\n", agentName)
-			//         agentMgr.Start(agentName)
-			//     } else {
-			//         fmt.Printf("  Agent %s already running\n", agentName)
-			//     }
-			//     continue
-			// }
-			//
-			// _, err := agentMgr.Spawn(agentName, agent.SpawnOptions{Role: role})
-			// if err != nil {
-			//     fmt.Printf("    Failed: %v\n", err)
-			//     continue
-			// }
+		fmt.Printf("  Spawning %s (role: %s)...\n", agentName, key.role)
 
-			fmt.Printf("  [placeholder] %s\n", agentName)
+		start := time.Now()
+		runner, err := orchestrator.StartWorkstream(key.project, key.role, key.workstream)
+		elapsed := time.Since(start)
+
+		if err != nil {
+			fmt.Printf("    Failed: %v\n", err)
+			continue
 		}
+
+		runners[key] = runner
+		fmt.Printf("    Created (%.1fs)\n", elapsed.Seconds())
 	}
 	fmt.Println()
 
@@ -130,10 +179,16 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	fmt.Println("Assigning tasks...")
 	assigned := 0
 
-	// Get pending tasks for each role
-	for role := range rolesNeeded {
-		roleTasks := taskMgr.GetByRole(role)
-		for _, t := range roleTasks {
+	for key := range workstreams {
+		// Get tasks for this workstream
+		var wsTasks []*task.Task
+		if key.project != "" {
+			wsTasks = taskMgr.GetByProjectAndWorkstream(key.project, key.role, key.workstream)
+		} else {
+			wsTasks = taskMgr.GetByRoleAndWorkstream(key.role, key.workstream)
+		}
+
+		for _, t := range wsTasks {
 			if t.Status != task.StatusPending {
 				continue
 			}
@@ -146,8 +201,7 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
-			// TODO: Get idle agent for role and assign
-			agentName := fmt.Sprintf("%s-agent", role)
+			agentName := buildAgentName(key.project, key.workstream)
 			fmt.Printf("  %s -> %s\n", t.ID, agentName)
 
 			// Update task status
@@ -158,7 +212,7 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 			// prompt := buildTaskPrompt(t)
 			// go agentMgr.Run(agentName, prompt, agent.RunOptions{})
 
-			// Only assign one task per agent for now
+			// Only assign first pending task per workstream
 			break
 		}
 	}
@@ -169,9 +223,23 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("Project started!")
-	fmt.Println("Monitor with: tanuki project status")
+	if projectName != "" {
+		fmt.Printf("Monitor with: tanuki project status %s\n", projectName)
+	} else {
+		fmt.Println("Monitor with: tanuki project status")
+	}
 
 	return nil
+}
+
+// buildAgentName creates the agent name from project and workstream.
+// Uses project.AgentName for standardization.
+func buildAgentName(projectName, workstream string) string {
+	if projectName == "" {
+		// For root tasks, use just the workstream
+		return strings.ToLower(strings.ReplaceAll(workstream, " ", "-"))
+	}
+	return project.AgentName(projectName, workstream)
 }
 
 // buildTaskPrompt creates the prompt to send to an agent for a task.
@@ -192,4 +260,46 @@ func buildTaskPrompt(t *task.Task) string {
 	}
 
 	return prompt.String()
+}
+
+// createAgentManager creates an agent.Manager with all dependencies.
+func createAgentManager(projectRoot string) (*agent.Manager, error) {
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	// Create git manager
+	gitMgr, err := git.NewManager(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create git manager: %w", err)
+	}
+
+	// Create docker manager
+	dockerMgr, err := docker.NewManager(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create docker manager: %w", err)
+	}
+
+	// Create state manager
+	stateMgr, err := state.NewFileStateManager(state.DefaultStatePath(), dockerMgr)
+	if err != nil {
+		return nil, fmt.Errorf("create state manager: %w", err)
+	}
+
+	// Create executor
+	exec := executor.NewExecutor(dockerMgr)
+
+	// Create agent manager
+	agentMgr, err := agent.NewManager(cfg, gitMgr, dockerMgr, stateMgr, exec)
+	if err != nil {
+		return nil, fmt.Errorf("create agent manager: %w", err)
+	}
+
+	// Set up role manager
+	roleMgr := role.NewManager(projectRoot)
+	agentMgr.SetRoleManager(newRoleManagerAdapter(roleMgr))
+
+	return agentMgr, nil
 }

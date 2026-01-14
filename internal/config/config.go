@@ -30,6 +30,10 @@ type Config struct {
 	// Version is the configuration schema version (currently "1")
 	Version string `yaml:"version" mapstructure:"version" validate:"required,eq=1"`
 
+	// TasksDir is the directory for task files, relative to project root.
+	// Defaults to "tasks" (visible in project). Can be set to ".tanuki/tasks" for hidden tasks.
+	TasksDir string `yaml:"tasks_dir,omitempty" mapstructure:"tasks_dir"`
+
 	// Image specifies the Docker image configuration for agent containers
 	Image ImageConfig `yaml:"image" mapstructure:"image"`
 
@@ -389,6 +393,7 @@ func (l *Loader) setDefaults() {
 	defaults := DefaultConfig()
 
 	l.v.SetDefault("version", defaults.Version)
+	l.v.SetDefault("tasks_dir", defaults.TasksDir)
 	l.v.SetDefault("image.name", defaults.Image.Name)
 	l.v.SetDefault("image.tag", defaults.Image.Tag)
 	l.v.SetDefault("defaults.allowed_tools", defaults.Defaults.AllowedTools)
@@ -462,7 +467,8 @@ func formatValidationError(e validator.FieldError) string {
 // DefaultConfig returns a new Config with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		Version: "1",
+		Version:  "1",
+		TasksDir: "tasks",
 		Image: ImageConfig{
 			Name: "bkonkle/tanuki",
 			Tag:  "latest",

@@ -1,97 +1,148 @@
-# TODO: Ralph-First Projects, Roles, Workstreams
+# TODO: Project/Workstream Restructure
 
-## Status: COMPLETED
+Restructure tasks to support project folders with multiple concurrent workstreams per project.
 
-All items from this plan have been implemented. See below for details.
+## Target Structure
 
-## Goal
-
-Make the README workflow real: Projects -> Roles -> Workstreams -> Tasks, with Ralph-only execution,
-project docs, role-scoped prompts, and per-role workstream concurrency.
-
-## Completed Items
-
-- [x] Define the workstream model and defaults: how to assign `workstream` when missing, how to
-      order workstreams per role, and how to detect a workstream as complete.
-      - Created `docs/design/workstream-model.md`
-
-- [x] Extend task schema to include `workstream` and update parsing/validation. Update managers and
-      tests to support `role + workstream` filtering and ordering.
-      - Added `Workstream` field to `internal/task/types.go`
-      - Added `GetWorkstream()`, `GetByWorkstream()`, `GetWorkstreams()` to manager
-      - Added tests in `internal/task/manager_test.go`
-
-- [x] Add role config to `tanuki.yaml` with `system_prompt` and `concurrency`, wire into config
-      loader/validator and defaults.
-      - Added `RoleConfig` struct to `internal/config/config.go`
-      - Added `GetRoleConcurrency()`, `GetRoleConfig()` helpers
-
-- [x] Merge role config with existing role files and builtin roles (define precedence), and ensure
-      CLI role listing/show includes config-defined roles.
-      - Added `NewManagerWithConfig()` to `internal/role/manager.go`
-      - Implements precedence: config > project roles > builtin
-
-- [x] Update project init to create `.tanuki/project.md` and sample ticket with `workstream`.
-      - Updated `internal/cli/project_init.go`
-
-- [x] Load project doc into agent context (either auto-context files or prompt injection).
-      - Added `CopyProjectDoc()`, `CopyAllContext()` to `internal/context/context.go`
-
-- [x] Implement workstream scheduler with per-role concurrency and rolling window behavior.
-      - Created `internal/project/workstream.go` with `WorkstreamScheduler`
-      - Integrated into orchestrator
-
-- [x] Make Ralph the only execution mode:
-      - Updated `internal/cli/run.go` - always uses Ralph loop
-      - Removed `--ralph` and `--follow` flags
-
-- [x] Add context-budget logic for workstreams (max turns/iterations).
-      - Added `WorkstreamSession` to `internal/state/state.go`
-      - Added `MaxWorkstreamTurns` config option
-
-- [x] Update project CLI and status/dashboard to surface workstreams:
-      - Added `--workstreams` flag to `project status`
-      - Shows workstream column in task table
-
-- [x] Add or update tests for new config/roles, task schema, scheduler behavior.
-      - Added workstream tests to `internal/task/manager_test.go`
-
-- [x] Document migration (this file and design doc)
-
-## Key Changes
-
-### Task Schema
-
-```yaml
----
-id: AUTH-001
-title: Implement login
-role: backend
-workstream: auth-feature  # NEW - groups related tasks
-priority: high
-status: pending
----
+```
+tasks/
+  auth-feature/
+    project.md              # Project context and goals
+    001-oauth-login.md      # Task for workstream A
+    002-jwt-tokens.md       # Task for workstream A (depends on 001)
+    003-session-store.md    # Task for workstream B
+    004-refresh-flow.md     # Task for workstream B (depends on 002)
+  api-refactor/
+    project.md
+    001-endpoints.md
+    002-middleware.md
+    ...
 ```
 
-### tanuki.yaml
+## Concepts
 
-```yaml
-roles:
-  backend:
-    concurrency: 2          # Max concurrent workstreams
-    system_prompt: "..."    # Role-specific prompt
-```
+- **Project**: A folder in `tasks/` containing `project.md` and task files
+- **Workstream**: A named sequence of tasks within a project (e.g., `A`, `B`, `C`)
+- **Agent**: One agent per active workstream, named like `{project}-{workstream}`
+  (e.g., `auth-feature-a`, `auth-feature-b`)
+- **Concurrency**: Configured per role — limits how many workstreams run simultaneously
 
-### CLI
+## Phase 1: Project Folder Support ✓
 
-- `tanuki run` now always uses Ralph mode (autonomous loop)
-- `tanuki project status --workstreams` shows workstream details
-- `tanuki project init` creates `project.md`
+### 1.1 Update Task Manager to Scan Subdirectories ✓
 
-### Precedence
+- [x] Modify `Manager.Scan()` to walk subdirectories of `tasks/`
+- [x] Each subdirectory with a `project.md` is treated as a project
+- [x] Task files are scanned from project subdirectories (and root `tasks/`)
+- [x] Store project name on each Task (derived from folder name)
 
-Role configuration merges from:
+### 1.2 Add Project Type ✓
 
-1. `tanuki.yaml` `roles` section (highest)
-2. `.tanuki/roles/*.yaml` files
-3. Builtin roles (lowest)
+- [x] Create `internal/project/project.go` with `Project` struct
+- [x] Add `ProjectManager` to scan and load projects
+- [x] Parse `project.md` for project-level context
+
+### 1.3 Update CLI Commands ✓
+
+- [x] `tanuki project init <name>` — Create a new project folder with `project.md`
+- [x] `tanuki project list` — List all projects
+- [x] `tanuki project status [name]` — Show status for one or all projects
+- [x] `tanuki project start <name>` — Start workstreams for a specific project
+
+## Phase 2: Workstream Assignment ✓
+
+### 2.1 Workstream Field on Tasks ✓
+
+- [x] Task frontmatter gets `workstream: oauth` (or any name)
+- [x] Tasks without explicit workstream default to task ID
+- [x] Workstream is scoped to the project
+
+### 2.2 Workstream Discovery ✓
+
+- [x] `Manager.GetWorkstreams(role) []string` — Return unique workstreams
+- [x] `Manager.GetProjectWorkstreams(project, role) []string` — Workstreams in project
+- [x] `Manager.GetByRoleAndWorkstream(role, ws)` — Get tasks for workstream
+- [x] `Manager.GetByProjectAndWorkstream(proj, role, ws)` — Project-scoped
+
+### 2.3 Agent Naming Convention ✓
+
+- [x] Agent name format: `{project}-{workstream}` via `project.AgentName()`
+- [x] Worktree branch: `tanuki/{project}-{workstream}` via `project.WorktreeBranch()`
+
+## Phase 3: Dependency-Aware Task Execution ✓
+
+### 3.1 Cross-Workstream Dependencies ✓
+
+- [x] `depends_on` can reference tasks in other workstreams within same project
+- [x] Dependencies are resolved by task ID, not workstream
+
+### 3.2 Blocking and Waiting ✓
+
+- [x] Before starting a task, agent checks if all dependencies are `complete`
+- [x] `Manager.IsBlocked()` checks dependency status
+- [x] `Manager.GetBlockingTasks()` returns incomplete dependencies
+
+### 3.3 Task Lifecycle Updates ✓
+
+- [x] `WorkstreamScheduler.CompleteTask()` updates state
+- [x] Status changes persist to task files via `WriteFile()`
+
+## Phase 4: Concurrency Control ✓
+
+### 4.1 Role-Based Concurrency ✓
+
+- [x] Config: `roles.backend.concurrency: 3` in `tanuki.yaml`
+- [x] `WorkstreamScheduler.SetRoleConcurrency()` enforces limits
+
+### 4.2 Workstream Scheduling ✓
+
+- [x] `WorkstreamScheduler` tracks active workstreams per role
+- [x] `GetNextWorkstream()` respects concurrency limits
+- [x] Workstreams queued in priority order
+
+## Phase 5: Agent Integration ✓
+
+### 5.1 Workstream Agent Loop ✓
+
+- [x] `WorkstreamRunner` executes tasks sequentially within a workstream
+- [x] Loop:
+  1. Get next pending task for this workstream
+  2. Check dependencies — if blocked, wait and retry
+  3. Execute task via `agent.Manager.Run()`
+  4. Mark task complete
+  5. Repeat until no more tasks in workstream
+- [x] `WorkstreamOrchestrator` manages concurrency limits per role
+
+### 5.2 Agent Startup ✓
+
+- [x] Connect `project start` to actual agent spawning via `agent.Manager`
+- [x] Create git worktrees for each `{project}-{workstream}` branch
+- [x] Spawn Docker containers with worktree mounts
+- [x] Connect `project resume` to restart stopped agents
+
+### 5.3 Progress Reporting (Future Enhancement)
+
+- [ ] Dashboard shows projects → workstreams → tasks hierarchy
+- [ ] Status command shows which workstreams are active/waiting/complete
+- [ ] Implement `tanuki project status --watch` for live updates
+
+## Migration Notes
+
+- Existing flat `tasks/*.md` structure continues to work (treated as root tasks)
+- Projects are opt-in: create a subfolder with `project.md` to use project mode
+- Backward compatible: `tanuki project init` without name creates flat structure
+
+## File Changes Summary
+
+| File | Status | Changes |
+|------|--------|---------|
+| `internal/task/manager.go` | ✓ | Recursive scan, project field on tasks |
+| `internal/task/types.go` | ✓ | Add `Project` field to Task |
+| `internal/project/project.go` | ✓ | New: Project struct and ProjectManager |
+| `internal/project/workstream.go` | ✓ | WorkstreamScheduler with concurrency |
+| `internal/cli/project_init.go` | ✓ | Accept project name, create subfolder |
+| `internal/cli/project_list.go` | ✓ | New: List all projects |
+| `internal/cli/project_start.go` | ✓ | Spawn per-workstream agents |
+| `internal/cli/project_status.go` | ✓ | Show project/workstream hierarchy |
+| `internal/cli/project_resume.go` | ✓ | Resume specific project |
+| `internal/agent/workstream.go` | ✓ | WorkstreamRunner, WorkstreamOrchestrator |

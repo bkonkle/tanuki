@@ -28,6 +28,7 @@ type Task struct {
 	// Derived fields (not in YAML)
 	FilePath    string     `yaml:"-"`
 	Content     string     `yaml:"-"` // Markdown body (after front matter)
+	Project     string     `yaml:"-"` // Project folder name (derived from directory)
 	CompletedAt *time.Time `yaml:"completed_at,omitempty"`
 	StartedAt   *time.Time `yaml:"started_at,omitempty"`
 }

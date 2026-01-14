@@ -104,8 +104,8 @@ tanuki merge auth
 # Initialize project doc and tickets
 tanuki project init
 
-# Describe the project in .tanuki/project.md
-cat > .tanuki/project.md << 'EOF'
+# Describe the project in tasks/project.md
+cat > tasks/project.md << 'EOF'
 # Project: User Authentication
 
 Goals:
@@ -115,8 +115,8 @@ Goals:
 Roles: backend, frontend, qa
 EOF
 
-# Create ticket files in .tanuki/tasks/
-cat > .tanuki/tasks/TICKET-001-auth.md << 'EOF'
+# Create ticket files in tasks/
+cat > tasks/TICKET-001-auth.md << 'EOF'
 ---
 id: TICKET-001
 title: Implement User Authentication
@@ -214,9 +214,11 @@ Projects define the shared context for a Tanuki run. The workflow is:
 
 Projects -> Roles -> Workstreams -> Tasks
 
-A project doc (for example `.tanuki/project.md`) captures goals, constraints, and shared context.
+A project doc (for example `tasks/project.md`) captures goals, constraints, and shared context.
 Tickets (tasks) are Markdown files tagged with a role and an optional workstream. Roles must exist
 in the project's `tanuki.yaml`, which also defines role prompts and workstream concurrency.
+
+The tasks directory defaults to `tasks/` but is configurable via `tasks_dir` in `tanuki.yaml`.
 
 ## Roles
 
@@ -244,17 +246,20 @@ vim .tanuki/roles/my-custom-role.yaml
 
 ## Workstreams
 
-Workstreams are per-role worker slots, each with its own container and worktree. Each workstream
-runs a Ralph loop that pulls the next ticket, checks context budget, executes until completion, and
-decides whether to take another ticket or emit artifacts and start a fresh Ralph instance for that
-workstream.
+Workstreams let multiple agents of the same role work in parallel on different tasks. For example,
+if you have five backend tasks across two workstreams (`auth` and `api`), you can have two backend
+agents running simultaneously — one focused on auth tasks, another on API tasks.
 
-Concurrency is configured per role. If a role has concurrency 3 and you have workstreams A, B, C, D,
-and E, Tanuki keeps a rolling window of three active workstreams (A/B/C, then B/C/D, then C/D/E).
+Each workstream gets its own container and worktree. Within a workstream, tasks run sequentially
+(one at a time), but different workstreams run concurrently. This gives you parallelism without
+conflicts — agents in separate workstreams can't step on each other's changes.
+
+Concurrency is configured per role. Setting `concurrency: 3` for the backend role means up to
+three backend workstreams can run at once.
 
 ## Tasks
 
-Tasks (tickets) are Markdown files with YAML front matter in `.tanuki/tasks/`:
+Tasks (tickets) are Markdown files with YAML front matter in `tasks/`:
 
 ```markdown
 ---
@@ -324,6 +329,9 @@ Tanuki works without configuration using sensible defaults. Optionally create `t
 
 ```yaml
 version: '1'
+
+# Task directory (defaults to "tasks", use ".tanuki/tasks" for hidden)
+tasks_dir: tasks
 
 image:
   name: bkonkle/tanuki

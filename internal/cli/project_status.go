@@ -17,10 +17,14 @@ var (
 )
 
 var projectStatusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status [name]",
 	Short: "Show project status",
-	Long:  `Displays all tasks, their status, workstreams, and assigned agents.`,
-	RunE:  runProjectStatus,
+	Long: `Displays all tasks, their status, workstreams, and assigned agents.
+
+Without a name argument, shows status for all tasks (flat structure or all projects).
+
+With a name argument, shows status for a specific project folder.`,
+	RunE: runProjectStatus,
 }
 
 func init() {
@@ -36,17 +40,15 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if task directory exists
-	taskDir := filepath.Join(projectRoot, ".tanuki", "tasks")
+	taskDir := getTasksDir(projectRoot)
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
 		fmt.Println("No tasks found.")
-		fmt.Println("Create tasks in .tanuki/tasks/ or run: tanuki project init")
+		fmt.Printf("Create tasks in %s/ or run: tanuki project init\n", taskDir)
 		return nil
 	}
 
-	// Create task manager with mock implementation for now
-	// Real implementation will be integrated later
-	taskMgr := newMockTaskManager(taskDir)
-
+	// Use the real task manager
+	taskMgr := task.NewManager(&task.Config{ProjectRoot: projectRoot})
 	tasks, err := taskMgr.Scan()
 	if err != nil {
 		return fmt.Errorf("scan tasks: %w", err)
@@ -54,8 +56,20 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 
 	if len(tasks) == 0 {
 		fmt.Println("No tasks found.")
-		fmt.Println("Create tasks in .tanuki/tasks/ or run: tanuki project init")
+		fmt.Printf("Create tasks in %s/ or run: tanuki project init\n", taskDir)
 		return nil
+	}
+
+	// If a project name is provided, filter tasks
+	var projectName string
+	if len(args) > 0 {
+		projectName = args[0]
+		tasks = taskMgr.GetByProject(projectName)
+		if len(tasks) == 0 {
+			fmt.Printf("No tasks found for project '%s'.\n", projectName)
+			fmt.Println("Run: tanuki project list")
+			return nil
+		}
 	}
 
 	// Count by status
@@ -68,7 +82,18 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 	workstreams := collectWorkstreams(tasks)
 
 	// Print summary
-	fmt.Printf("Project: %s\n", filepath.Base(projectRoot))
+	if projectName != "" {
+		fmt.Printf("Project: %s\n", projectName)
+	} else {
+		// Show all projects summary
+		projects := taskMgr.GetProjects()
+		if len(projects) > 0 {
+			fmt.Printf("Projects: %s\n", filepath.Base(projectRoot))
+			fmt.Printf("  Subprojects: %v\n", projects)
+		} else {
+			fmt.Printf("Project: %s\n", filepath.Base(projectRoot))
+		}
+	}
 	fmt.Printf("Tasks: %d total (%d pending, %d in progress, %d complete)\n",
 		len(tasks),
 		counts[task.StatusPending]+counts[task.StatusBlocked],
@@ -88,12 +113,19 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 
 	// Print task table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
-	fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
+	if projectName == "" && len(taskMgr.GetProjects()) > 0 {
+		// Include project column when showing all
+		fmt.Fprintln(w, "PROJECT\tID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		fmt.Fprintln(w, "-------\t--\t-----\t----\t----------\t--------\t------\t--------")
+	} else {
+		fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
+	}
 
 	// Sort by priority, then status
 	sortTasks(tasks)
 
+	showProjectColumn := projectName == "" && len(taskMgr.GetProjects()) > 0
 	for _, t := range tasks {
 		assigned := "-"
 		if t.AssignedTo != "" {
@@ -103,15 +135,33 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 		if ws == t.ID {
 			ws = "-" // Don't show if same as task ID
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			t.ID,
-			truncate(t.Title, 30),
-			t.Role,
-			truncate(ws, 15),
-			t.Priority,
-			t.Status,
-			assigned,
-		)
+
+		if showProjectColumn {
+			proj := t.Project
+			if proj == "" {
+				proj = "(root)"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				truncate(proj, 15),
+				t.ID,
+				truncate(t.Title, 25),
+				t.Role,
+				truncate(ws, 12),
+				t.Priority,
+				t.Status,
+				assigned,
+			)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				t.ID,
+				truncate(t.Title, 30),
+				t.Role,
+				truncate(ws, 15),
+				t.Priority,
+				t.Status,
+				assigned,
+			)
+		}
 	}
 
 	return w.Flush()

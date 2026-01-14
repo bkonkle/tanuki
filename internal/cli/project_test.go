@@ -22,8 +22,8 @@ func TestProjectInit(t *testing.T) {
 		t.Fatalf("runProjectInit() error: %v", err)
 	}
 
-	// Check task directory was created
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	// Check task directory was created (defaults to "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
 		t.Error("task directory was not created")
 	}
@@ -66,22 +66,105 @@ func TestProjectInitIdempotent(t *testing.T) {
 		t.Fatalf("second runProjectInit() error: %v", err)
 	}
 
-	// Should still have exactly one example task
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	// Should still have exactly one example task (plus project.md)
+	taskDir := filepath.Join(tempDir, "tasks")
 	entries, err := os.ReadDir(taskDir)
 	if err != nil {
 		t.Fatalf("read task dir: %v", err)
 	}
 
-	if len(entries) != 1 {
-		t.Errorf("expected 1 task file, got %d", len(entries))
+	// Expect 2 files: project.md and TASK-001-example.md
+	if len(entries) != 2 {
+		t.Errorf("expected 2 files (project.md + example task), got %d", len(entries))
+	}
+}
+
+func TestProjectInitWithName(t *testing.T) {
+	// Create temp directory
+	tempDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	os.Chdir(tempDir)
+
+	// Run init with a project name
+	err := runProjectInit(nil, []string{"auth-feature"})
+	if err != nil {
+		t.Fatalf("runProjectInit(auth-feature) error: %v", err)
+	}
+
+	// Check tasks directory was created
+	taskDir := filepath.Join(tempDir, "tasks")
+	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+		t.Error("tasks directory was not created")
+	}
+
+	// Check project folder was created
+	projectDir := filepath.Join(taskDir, "auth-feature")
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		t.Error("project folder was not created")
+	}
+
+	// Check project.md was created in project folder
+	projectMdPath := filepath.Join(projectDir, "project.md")
+	if _, err := os.Stat(projectMdPath); os.IsNotExist(err) {
+		t.Error("project.md was not created")
+	}
+
+	// Check example task was created in project folder
+	examplePath := filepath.Join(projectDir, "001-example.md")
+	if _, err := os.Stat(examplePath); os.IsNotExist(err) {
+		t.Error("example task was not created")
+	}
+
+	// Verify example task can be parsed and has correct project ID prefix
+	content, err := os.ReadFile(examplePath)
+	if err != nil {
+		t.Fatalf("read example task: %v", err)
+	}
+
+	if !strings.Contains(string(content), "id: auth-feature-001") {
+		t.Error("example task should have project-prefixed id")
+	}
+	if !strings.Contains(string(content), "workstream: main") {
+		t.Error("example task should have workstream: main")
+	}
+}
+
+func TestProjectInitWithNameIdempotent(t *testing.T) {
+	// Create temp directory
+	tempDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	os.Chdir(tempDir)
+
+	// Run init with project name twice
+	err := runProjectInit(nil, []string{"my-project"})
+	if err != nil {
+		t.Fatalf("first runProjectInit(my-project) error: %v", err)
+	}
+
+	err = runProjectInit(nil, []string{"my-project"})
+	if err != nil {
+		t.Fatalf("second runProjectInit(my-project) error: %v", err)
+	}
+
+	// Should still have exactly one example task (plus project.md)
+	projectDir := filepath.Join(tempDir, "tasks", "my-project")
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		t.Fatalf("read project dir: %v", err)
+	}
+
+	// Expect 2 files: project.md and 001-example.md
+	if len(entries) != 2 {
+		t.Errorf("expected 2 files (project.md + example task), got %d", len(entries))
 	}
 }
 
 func TestMockTaskManagerScan(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	os.MkdirAll(taskDir, 0755)
 
 	// Create test task
@@ -117,7 +200,7 @@ Test content
 func TestMockTaskManagerGetByRole(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	os.MkdirAll(taskDir, 0755)
 
 	// Create backend task
@@ -167,7 +250,7 @@ Frontend content
 func TestMockTaskManagerIsBlocked(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	os.MkdirAll(taskDir, 0755)
 
 	// Create T1 (complete)
@@ -253,7 +336,7 @@ Depends on T2
 func TestMockTaskManagerUpdateStatus(t *testing.T) {
 	// Create temp directory with task file
 	tempDir := t.TempDir()
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	os.MkdirAll(taskDir, 0755)
 
 	taskContent := `---
@@ -296,7 +379,7 @@ Test content
 func TestMockTaskManagerAssign(t *testing.T) {
 	// Create temp directory with task file
 	tempDir := t.TempDir()
-	taskDir := filepath.Join(tempDir, ".tanuki", "tasks")
+	taskDir := filepath.Join(tempDir, "tasks")
 	os.MkdirAll(taskDir, 0755)
 
 	taskContent := `---

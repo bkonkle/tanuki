@@ -3,16 +3,20 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/bkonkle/tanuki/internal/state"
 	"github.com/bkonkle/tanuki/internal/task"
 	"github.com/spf13/cobra"
 )
 
 var projectResumeCmd = &cobra.Command{
-	Use:   "resume",
+	Use:   "resume [name]",
 	Short: "Resume a stopped project",
 	Long: `Restarts stopped agents and reassigns incomplete tasks.
+
+Without a name argument, resumes all projects.
+
+With a name argument, resumes only the specified project.
 
 This command:
   1. Resets in_progress and assigned tasks back to pending
@@ -33,7 +37,7 @@ func runProjectResume(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("get working directory: %w", err)
 	}
 
-	taskDir := filepath.Join(projectRoot, ".tanuki", "tasks")
+	taskDir := getTasksDir(projectRoot)
 
 	// Check if task directory exists
 	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
@@ -41,17 +45,33 @@ func runProjectResume(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Scan tasks
-	fmt.Println("Resuming project...")
-	taskMgr := newMockTaskManager(taskDir)
-	tasks, err := taskMgr.Scan()
+	// Use the real task manager
+	taskMgr := task.NewManager(&task.Config{ProjectRoot: projectRoot})
+	allTasks, err := taskMgr.Scan()
 	if err != nil {
 		return fmt.Errorf("scan tasks: %w", err)
 	}
 
-	if len(tasks) == 0 {
+	if len(allTasks) == 0 {
 		fmt.Println("No tasks found.")
 		return nil
+	}
+
+	// Filter by project name if provided
+	var projectName string
+	var tasks []*task.Task
+	if len(args) > 0 {
+		projectName = args[0]
+		tasks = taskMgr.GetByProject(projectName)
+		if len(tasks) == 0 {
+			fmt.Printf("No tasks found for project '%s'.\n", projectName)
+			fmt.Println("Run: tanuki project list")
+			return nil
+		}
+		fmt.Printf("Resuming project: %s\n", projectName)
+	} else {
+		tasks = allTasks
+		fmt.Println("Resuming project...")
 	}
 
 	// Reset in_progress and assigned tasks to pending
@@ -70,27 +90,48 @@ func runProjectResume(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
+	// Create agent manager
+	agentMgr, err := createAgentManager(projectRoot)
+	if err != nil {
+		return fmt.Errorf("create agent manager: %w", err)
+	}
+
 	// Start stopped agents
 	fmt.Println("Starting stopped agents...")
-	// TODO: Integrate with agent manager
-	// agents, _ := agentMgr.List()
-	// for _, ag := range agents {
-	//     if ag.Role != "" && ag.Status == "stopped" {
-	//         fmt.Printf("  Starting %s...\n", ag.Name)
-	//         agentMgr.Start(ag.Name)
-	//     }
-	// }
-
-	fmt.Println("  [placeholder] No stopped agents found")
+	agents, err := agentMgr.List()
+	if err != nil {
+		fmt.Printf("  Warning: failed to list agents: %v\n", err)
+	} else {
+		startedCount := 0
+		for _, ag := range agents {
+			if ag.Status == state.StatusStopped {
+				fmt.Printf("  Starting %s...\n", ag.Name)
+				if err := agentMgr.Start(ag.Name); err != nil {
+					fmt.Printf("    Failed: %v\n", err)
+				} else {
+					startedCount++
+				}
+			}
+		}
+		if startedCount == 0 {
+			fmt.Println("  No stopped agents found")
+		} else {
+			fmt.Printf("  Started %d agents\n", startedCount)
+		}
+	}
 	fmt.Println()
 
-	// Delegate to start for assignment logic
+	// Delegate to start for task assignment
 	fmt.Println("Reassigning tasks...")
-	// TODO: Call task assignment logic from project start
+	fmt.Println("  Run 'tanuki project start' to assign tasks to agents")
 
 	fmt.Println()
 	fmt.Println("Project resumed!")
-	fmt.Println("Monitor with: tanuki project status")
+	if projectName != "" {
+		fmt.Printf("Monitor with: tanuki project status %s\n", projectName)
+	} else {
+		fmt.Println("Monitor with: tanuki project status")
+	}
 
 	return nil
 }

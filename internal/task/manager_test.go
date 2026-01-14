@@ -8,27 +8,38 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	cfg := &Config{ProjectRoot: "/tmp/test"}
-	mgr := NewManager(cfg)
+	t.Run("default tasks directory", func(t *testing.T) {
+		cfg := &Config{ProjectRoot: "/tmp/test"}
+		mgr := NewManager(cfg)
 
-	if mgr == nil {
-		t.Fatal("NewManager() returned nil")
-	}
-	if mgr.config != cfg {
-		t.Error("config not set correctly")
-	}
-	if mgr.tasksDir != "/tmp/test/.tanuki/tasks" {
-		t.Errorf("tasksDir = %q, want /tmp/test/.tanuki/tasks", mgr.tasksDir)
-	}
-	if mgr.tasks == nil {
-		t.Error("tasks map not initialized")
-	}
+		if mgr == nil {
+			t.Fatal("NewManager() returned nil")
+		}
+		if mgr.config != cfg {
+			t.Error("config not set correctly")
+		}
+		if mgr.tasksDir != "/tmp/test/tasks" {
+			t.Errorf("tasksDir = %q, want /tmp/test/tasks", mgr.tasksDir)
+		}
+		if mgr.tasks == nil {
+			t.Error("tasks map not initialized")
+		}
+	})
+
+	t.Run("custom tasks directory", func(t *testing.T) {
+		cfg := &Config{ProjectRoot: "/tmp/test", TasksDir: ".tanuki/tasks"}
+		mgr := NewManager(cfg)
+
+		if mgr.tasksDir != "/tmp/test/.tanuki/tasks" {
+			t.Errorf("tasksDir = %q, want /tmp/test/.tanuki/tasks", mgr.tasksDir)
+		}
+	})
 }
 
 func TestManager_Scan(t *testing.T) {
 	// Setup temp directory with task files
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	if err := os.MkdirAll(tasksDir, 0755); err != nil {
 		t.Fatalf("Failed to create tasks dir: %v", err)
 	}
@@ -82,7 +93,7 @@ func TestManager_Scan_NoDirectory(t *testing.T) {
 
 func TestManager_Scan_SkipsInvalidFiles(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	// Valid task
@@ -363,7 +374,7 @@ func TestManager_GetBlockingTasks(t *testing.T) {
 
 func TestManager_UpdateStatus(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
@@ -412,7 +423,7 @@ func TestManager_UpdateStatus_NotFound(t *testing.T) {
 
 func TestManager_Assign(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
@@ -458,7 +469,7 @@ func TestManager_Assign_NotAvailable(t *testing.T) {
 
 func TestManager_Unassign(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
@@ -492,7 +503,7 @@ Content
 
 func TestManager_Unassign_KeepsCompleteStatus(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
@@ -523,7 +534,7 @@ Content
 
 func TestManager_UpdateBlockedStatus(t *testing.T) {
 	dir := t.TempDir()
-	tasksDir := filepath.Join(dir, ".tanuki", "tasks")
+	tasksDir := filepath.Join(dir, "tasks")
 	os.MkdirAll(tasksDir, 0755)
 
 	// T1 is pending with no deps
@@ -608,7 +619,7 @@ func TestManager_TasksDir(t *testing.T) {
 	mgr := NewManager(cfg)
 
 	dir := mgr.TasksDir()
-	expected := "/test/project/.tanuki/tasks"
+	expected := "/test/project/tasks"
 	if dir != expected {
 		t.Errorf("TasksDir() = %q, want %q", dir, expected)
 	}
@@ -730,6 +741,189 @@ func TestTask_GetWorkstream(t *testing.T) {
 			t.Errorf("GetWorkstream() = %s, want T2", task.GetWorkstream())
 		}
 	})
+}
+
+func TestManager_Scan_ProjectFolders(t *testing.T) {
+	// Setup temp directory with project folder structure
+	dir := t.TempDir()
+	tasksDir := filepath.Join(dir, "tasks")
+	if err := os.MkdirAll(tasksDir, 0755); err != nil {
+		t.Fatalf("Failed to create tasks dir: %v", err)
+	}
+
+	// Create a project folder
+	projectDir := filepath.Join(tasksDir, "auth-feature")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatalf("Failed to create project dir: %v", err)
+	}
+
+	// Create project.md (makes it a project folder)
+	projectMd := `# Project: auth-feature
+
+Auth feature implementation.
+`
+	if err := os.WriteFile(filepath.Join(projectDir, "project.md"), []byte(projectMd), 0644); err != nil {
+		t.Fatalf("Failed to write project.md: %v", err)
+	}
+
+	// Create task in project folder
+	projectTask := `---
+id: AUTH-001
+title: Implement OAuth
+role: backend
+priority: high
+status: pending
+workstream: oauth
+---
+
+Implement OAuth flow.
+`
+	if err := os.WriteFile(filepath.Join(projectDir, "001-oauth.md"), []byte(projectTask), 0644); err != nil {
+		t.Fatalf("Failed to write project task: %v", err)
+	}
+
+	// Create root task (not in project)
+	rootTask := `---
+id: ROOT-001
+title: Root Task
+role: backend
+priority: medium
+status: pending
+---
+
+A root task.
+`
+	if err := os.WriteFile(filepath.Join(tasksDir, "ROOT-001.md"), []byte(rootTask), 0644); err != nil {
+		t.Fatalf("Failed to write root task: %v", err)
+	}
+
+	// Scan
+	mgr := NewManager(&Config{ProjectRoot: dir})
+	tasks, err := mgr.Scan()
+
+	if err != nil {
+		t.Fatalf("Scan() error: %v", err)
+	}
+
+	if len(tasks) != 2 {
+		t.Errorf("Scan() returned %d tasks, want 2", len(tasks))
+	}
+
+	// Verify project task has project field set
+	authTask, err := mgr.Get("AUTH-001")
+	if err != nil {
+		t.Fatalf("Get(AUTH-001) error: %v", err)
+	}
+	if authTask.Project != "auth-feature" {
+		t.Errorf("AUTH-001 project = %q, want auth-feature", authTask.Project)
+	}
+
+	// Verify root task has no project
+	rootTaskResult, err := mgr.Get("ROOT-001")
+	if err != nil {
+		t.Fatalf("Get(ROOT-001) error: %v", err)
+	}
+	if rootTaskResult.Project != "" {
+		t.Errorf("ROOT-001 project = %q, want empty", rootTaskResult.Project)
+	}
+}
+
+func TestManager_GetByProject(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Project: "auth-feature", Priority: PriorityHigh},
+			"T2": {ID: "T2", Role: "backend", Project: "auth-feature", Priority: PriorityLow},
+			"T3": {ID: "T3", Role: "backend", Project: "api-refactor"},
+			"T4": {ID: "T4", Role: "frontend"}, // No project
+		},
+	}
+
+	t.Run("get project tasks", func(t *testing.T) {
+		tasks := mgr.GetByProject("auth-feature")
+		if len(tasks) != 2 {
+			t.Errorf("GetByProject(auth-feature) returned %d, want 2", len(tasks))
+		}
+		// Should be sorted by priority
+		if tasks[0].ID != "T1" {
+			t.Errorf("First task = %s, want T1 (higher priority)", tasks[0].ID)
+		}
+	})
+
+	t.Run("no matches", func(t *testing.T) {
+		tasks := mgr.GetByProject("nonexistent")
+		if len(tasks) != 0 {
+			t.Errorf("GetByProject(nonexistent) returned %d, want 0", len(tasks))
+		}
+	})
+}
+
+func TestManager_GetProjects(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Project: "auth-feature"},
+			"T2": {ID: "T2", Project: "auth-feature"},
+			"T3": {ID: "T3", Project: "api-refactor"},
+			"T4": {ID: "T4"}, // No project
+		},
+	}
+
+	projects := mgr.GetProjects()
+	if len(projects) != 2 {
+		t.Errorf("GetProjects() returned %d, want 2", len(projects))
+	}
+
+	// Should be sorted alphabetically
+	if projects[0] != "api-refactor" {
+		t.Errorf("First project = %s, want api-refactor", projects[0])
+	}
+	if projects[1] != "auth-feature" {
+		t.Errorf("Second project = %s, want auth-feature", projects[1])
+	}
+}
+
+func TestManager_GetProjectWorkstreams(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Project: "auth", Workstream: "oauth", Priority: PriorityLow},
+			"T2": {ID: "T2", Role: "backend", Project: "auth", Workstream: "jwt", Priority: PriorityCritical},
+			"T3": {ID: "T3", Role: "backend", Project: "auth", Workstream: "oauth", Priority: PriorityHigh},
+			"T4": {ID: "T4", Role: "frontend", Project: "auth", Workstream: "ui"},
+		},
+	}
+
+	workstreams := mgr.GetProjectWorkstreams("auth", "backend")
+	if len(workstreams) != 2 {
+		t.Errorf("GetProjectWorkstreams(auth, backend) returned %d, want 2", len(workstreams))
+	}
+
+	// Should be sorted by priority (jwt has critical, oauth has high)
+	if workstreams[0] != "jwt" {
+		t.Errorf("First workstream = %s, want jwt (critical priority)", workstreams[0])
+	}
+	if workstreams[1] != "oauth" {
+		t.Errorf("Second workstream = %s, want oauth", workstreams[1])
+	}
+}
+
+func TestManager_GetByProjectAndWorkstream(t *testing.T) {
+	mgr := &Manager{
+		tasks: map[string]*Task{
+			"T1": {ID: "T1", Role: "backend", Project: "auth", Workstream: "oauth", Priority: PriorityHigh},
+			"T2": {ID: "T2", Role: "backend", Project: "auth", Workstream: "jwt"},
+			"T3": {ID: "T3", Role: "backend", Project: "auth", Workstream: "oauth", Priority: PriorityLow},
+			"T4": {ID: "T4", Role: "frontend", Project: "auth", Workstream: "oauth"},
+		},
+	}
+
+	tasks := mgr.GetByProjectAndWorkstream("auth", "backend", "oauth")
+	if len(tasks) != 2 {
+		t.Errorf("GetByProjectAndWorkstream() returned %d, want 2", len(tasks))
+	}
+
+	// Should be sorted by priority
+	if tasks[0].ID != "T1" {
+		t.Errorf("First task = %s, want T1 (higher priority)", tasks[0].ID)
+	}
 }
 
 func TestManager_Stats_IncludesWorkstreams(t *testing.T) {
