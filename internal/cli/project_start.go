@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -222,6 +223,20 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
+
+	// Start the workstream runners in background goroutines
+	if len(runners) > 0 {
+		fmt.Printf("Starting %d workstream runner(s)...\n", len(runners))
+		for key, runner := range runners {
+			go func(k workstreamKey, r *agent.WorkstreamRunner) {
+				if err := r.Run(); err != nil {
+					log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
+				}
+			}(key, runner)
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("Project started!")
 	if projectName != "" {
 		fmt.Printf("Monitor with: tanuki project status %s\n", projectName)
