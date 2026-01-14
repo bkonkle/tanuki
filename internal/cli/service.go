@@ -327,4 +327,3 @@ func runServiceConnect(cmd *cobra.Command, args []string) error {
 	connectCmd.Stderr = os.Stderr
 	return connectCmd.Run()
 }
-

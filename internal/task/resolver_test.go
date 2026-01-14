@@ -129,9 +129,9 @@ func TestResolver_IsBlocked(t *testing.T) {
 	tasks := []*Task{
 		{ID: "T1", Status: StatusComplete},
 		{ID: "T2", Status: StatusPending},
-		{ID: "T3", DependsOn: []string{"T1"}},       // Not blocked
-		{ID: "T4", DependsOn: []string{"T2"}},       // Blocked
-		{ID: "T5", DependsOn: []string{"missing"}},  // Blocked (missing)
+		{ID: "T3", DependsOn: []string{"T1"}},      // Not blocked
+		{ID: "T4", DependsOn: []string{"T2"}},      // Blocked
+		{ID: "T5", DependsOn: []string{"missing"}}, // Blocked (missing)
 	}
 
 	resolver := NewResolver(tasks)
@@ -142,9 +142,9 @@ func TestResolver_IsBlocked(t *testing.T) {
 	}{
 		{"T1", false},
 		{"T2", false},
-		{"T3", false}, // T1 is complete
-		{"T4", true},  // T2 not complete
-		{"T5", true},  // missing dependency
+		{"T3", false},     // T1 is complete
+		{"T4", true},      // T2 not complete
+		{"T5", true},      // missing dependency
 		{"missing", true}, // not found = blocked
 	}
 

@@ -169,11 +169,11 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 
 // workstreamInfo holds summary info for a workstream.
 type workstreamInfo struct {
-	Name      string
-	Role      string
-	Total     int
-	Complete  int
-	Pending   int
+	Name       string
+	Role       string
+	Total      int
+	Complete   int
+	Pending    int
 	InProgress int
 }
 

@@ -107,7 +107,7 @@ func TestPriorityValue(t *testing.T) {
 		{PriorityHigh, 1},
 		{PriorityMedium, 2},
 		{PriorityLow, 3},
-		{"", 2},       // Empty defaults to medium
+		{"", 2},        // Empty defaults to medium
 		{"invalid", 2}, // Invalid defaults to medium
 	}
 

@@ -196,10 +196,10 @@ type Model struct {
 	taskProvider  TaskProvider
 
 	// Log streaming
-	logReader       *LogReader
-	selectedAgent   string
-	maxLogs         int
-	logCheckTicker  time.Duration
+	logReader      *LogReader
+	selectedAgent  string
+	maxLogs        int
+	logCheckTicker time.Duration
 
 	// Refresh interval
 	refreshInterval time.Duration

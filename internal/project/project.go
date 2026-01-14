@@ -111,11 +111,11 @@ type ProjectStats struct {
 
 // ProjectManager handles loading and managing projects.
 type ProjectManager struct {
-	mu         sync.RWMutex
-	tasksDir   string
-	projects   map[string]*Project // name -> project
-	rootTasks  []*task.Task        // tasks not in any project folder
-	taskMgr    *task.Manager
+	mu        sync.RWMutex
+	tasksDir  string
+	projects  map[string]*Project // name -> project
+	rootTasks []*task.Task        // tasks not in any project folder
+	taskMgr   *task.Manager
 }
 
 // NewProjectManager creates a new ProjectManager.

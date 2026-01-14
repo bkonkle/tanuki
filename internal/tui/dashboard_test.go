@@ -9,11 +9,11 @@ import (
 
 // mockAgentProvider is a mock implementation of AgentProvider for testing.
 type mockAgentProvider struct {
-	agents     []*AgentInfo
-	listErr    error
-	stopErr    error
-	startErr   error
-	stopCalled string
+	agents      []*AgentInfo
+	listErr     error
+	stopErr     error
+	startErr    error
+	stopCalled  string
 	startCalled string
 }
 

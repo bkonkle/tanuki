@@ -17,9 +17,9 @@ func TestFilterTools(t *testing.T) {
 		wantErrorMessage string
 	}{
 		{
-			name: "no restrictions",
-			role: nil,
-			opts: ToolFilterOptions{},
+			name:           "no restrictions",
+			role:           nil,
+			opts:           ToolFilterOptions{},
 			wantAllowed:    nil,
 			wantDisallowed: []string{}, // Empty slice, not nil
 			wantErrors:     false,
@@ -31,7 +31,7 @@ func TestFilterTools(t *testing.T) {
 			},
 			opts:           ToolFilterOptions{},
 			wantAllowed:    []string{"Bash", "Grep", "Read"}, // Sorted
-			wantDisallowed: []string{}, // Empty slice, not nil
+			wantDisallowed: []string{},                       // Empty slice, not nil
 			wantErrors:     false,
 		},
 		{
@@ -96,11 +96,11 @@ func TestFilterTools(t *testing.T) {
 			role: &Role{
 				AllowedTools: []string{"Read", "InvalidTool"},
 			},
-			opts:            ToolFilterOptions{},
-			wantAllowed:     []string{"InvalidTool", "Read"},
-			wantDisallowed:  []string{}, // Empty slice, not nil
-			wantErrors:      true,
-			wantErrorCount:  1,
+			opts:             ToolFilterOptions{},
+			wantAllowed:      []string{"InvalidTool", "Read"},
+			wantDisallowed:   []string{}, // Empty slice, not nil
+			wantErrors:       true,
+			wantErrorCount:   1,
 			wantErrorMessage: "unknown tool in allowed_tools",
 		},
 		{
@@ -108,11 +108,11 @@ func TestFilterTools(t *testing.T) {
 			role: &Role{
 				DisallowedTools: []string{"BadTool"},
 			},
-			opts:            ToolFilterOptions{},
-			wantAllowed:     nil,
-			wantDisallowed:  []string{"BadTool"},
-			wantErrors:      true,
-			wantErrorCount:  1,
+			opts:             ToolFilterOptions{},
+			wantAllowed:      nil,
+			wantDisallowed:   []string{"BadTool"},
+			wantErrors:       true,
+			wantErrorCount:   1,
 			wantErrorMessage: "unknown tool in disallowed_tools",
 		},
 		{
@@ -121,11 +121,11 @@ func TestFilterTools(t *testing.T) {
 				AllowedTools:    []string{"Read", "Write"},
 				DisallowedTools: []string{"Write"},
 			},
-			opts:            ToolFilterOptions{},
-			wantAllowed:     []string{"Read", "Write"},
-			wantDisallowed:  []string{"Write"},
-			wantErrors:      true,
-			wantErrorCount:  1,
+			opts:             ToolFilterOptions{},
+			wantAllowed:      []string{"Read", "Write"},
+			wantDisallowed:   []string{"Write"},
+			wantErrors:       true,
+			wantErrorCount:   1,
 			wantErrorMessage: "appears in both allowed and disallowed",
 		},
 		{
@@ -174,10 +174,10 @@ func TestFilterTools(t *testing.T) {
 				AllowedTools:    []string{"Read", "Write", "Edit"},
 				DisallowedTools: []string{"Bash"},
 			},
-			wantAllowed:    []string{"Edit", "Read", "Write"},
-			wantDisallowed: []string{"Bash", "Write"},
-			wantErrors:     true, // Write appears in both lists
-			wantErrorCount: 1,
+			wantAllowed:      []string{"Edit", "Read", "Write"},
+			wantDisallowed:   []string{"Bash", "Write"},
+			wantErrors:       true, // Write appears in both lists
+			wantErrorCount:   1,
 			wantErrorMessage: "appears in both allowed and disallowed",
 		},
 		{
@@ -192,8 +192,8 @@ func TestFilterTools(t *testing.T) {
 			wantErrors:     false,
 		},
 		{
-			name:           "nil role with CLI options",
-			role:           nil,
+			name: "nil role with CLI options",
+			role: nil,
 			opts: ToolFilterOptions{
 				AllowedTools:    []string{"Read"},
 				DisallowedTools: []string{"Write"},

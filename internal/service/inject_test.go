@@ -11,8 +11,8 @@ type mockManager struct {
 	statuses    map[string]*Status
 }
 
-func (m *mockManager) StartServices() error          { return nil }
-func (m *mockManager) StopServices() error           { return nil }
+func (m *mockManager) StartServices() error           { return nil }
+func (m *mockManager) StopServices() error            { return nil }
 func (m *mockManager) StartService(name string) error { return nil }
 func (m *mockManager) StopService(name string) error  { return nil }
 

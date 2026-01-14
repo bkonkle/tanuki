@@ -10,8 +10,8 @@ import (
 
 // Mock Docker manager for testing
 type mockDockerManager struct {
-	execFn            func(containerID string, cmd []string, opts docker.ExecOptions) error
-	execWithOutputFn  func(containerID string, cmd []string) (string, error)
+	execFn             func(containerID string, cmd []string, opts docker.ExecOptions) error
+	execWithOutputFn   func(containerID string, cmd []string) (string, error)
 	containerRunningFn func(containerID string) bool
 }
 

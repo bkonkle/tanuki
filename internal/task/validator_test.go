@@ -19,10 +19,10 @@ func TestValidator_ValidateWithSignal(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		output       string
-		wantStatus   Status
-		wantSignal   bool
+		name       string
+		output     string
+		wantStatus Status
+		wantSignal bool
 	}{
 		{
 			name:       "signal found",

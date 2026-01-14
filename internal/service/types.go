@@ -165,9 +165,9 @@ func DefaultPostgresConfig() *Config {
 // DefaultRedisConfig returns the default configuration for Redis.
 func DefaultRedisConfig() *Config {
 	return &Config{
-		Enabled: false,
-		Image:   "redis:7",
-		Port:    6379,
+		Enabled:     false,
+		Image:       "redis:7",
+		Port:        6379,
 		Environment: map[string]string{},
 		Volumes: []string{
 			"tanuki-redis:/data",

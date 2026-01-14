@@ -215,17 +215,17 @@ func (m *FileManager) roleFromConfig(name string, cfg *config.RoleConfig) *Role 
 	}
 
 	role := &Role{
-		Name:            name,
-		Description:     fmt.Sprintf("Role %s defined in tanuki.yaml", name),
-		Builtin:         false,
-		Concurrency:     cfg.Concurrency,
-		SystemPrompt:    cfg.SystemPrompt,
+		Name:             name,
+		Description:      fmt.Sprintf("Role %s defined in tanuki.yaml", name),
+		Builtin:          false,
+		Concurrency:      cfg.Concurrency,
+		SystemPrompt:     cfg.SystemPrompt,
 		SystemPromptFile: cfg.SystemPromptFile,
-		AllowedTools:    cfg.AllowedTools,
-		DisallowedTools: cfg.DisallowedTools,
-		Model:           cfg.Model,
-		MaxTurns:        cfg.MaxTurns,
-		Resources:       cfg.Resources,
+		AllowedTools:     cfg.AllowedTools,
+		DisallowedTools:  cfg.DisallowedTools,
+		Model:            cfg.Model,
+		MaxTurns:         cfg.MaxTurns,
+		Resources:        cfg.Resources,
 	}
 
 	// Load system prompt from file if specified

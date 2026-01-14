@@ -130,13 +130,13 @@ func TestRole_Validate(t *testing.T) {
 		{
 			name: "valid with all optional fields",
 			role: &Role{
-				Name:         "backend",
-				Description:  "Backend specialist",
-				SystemPrompt: "You are a backend developer",
-				AllowedTools: []string{"Read", "Write", "Edit"},
+				Name:            "backend",
+				Description:     "Backend specialist",
+				SystemPrompt:    "You are a backend developer",
+				AllowedTools:    []string{"Read", "Write", "Edit"},
 				DisallowedTools: []string{"Bash"},
-				ContextFiles: []string{"docs/api.md", "CONTRIBUTING.md"},
-				Model:        "claude-sonnet-4-5-20250514",
+				ContextFiles:    []string{"docs/api.md", "CONTRIBUTING.md"},
+				Model:           "claude-sonnet-4-5-20250514",
 				Resources: &config.ResourceConfig{
 					Memory: "8g",
 					CPUs:   "4",
@@ -176,13 +176,13 @@ func TestRole_Validate(t *testing.T) {
 
 func TestRole_YAML_Marshal(t *testing.T) {
 	role := &Role{
-		Name:         "backend",
-		Description:  "Backend development specialist",
-		SystemPrompt: "You are a backend developer",
-		AllowedTools: []string{"Read", "Write", "Edit"},
+		Name:            "backend",
+		Description:     "Backend development specialist",
+		SystemPrompt:    "You are a backend developer",
+		AllowedTools:    []string{"Read", "Write", "Edit"},
 		DisallowedTools: []string{"Bash"},
-		ContextFiles: []string{"docs/api.md"},
-		Model:        "claude-sonnet-4-5-20250514",
+		ContextFiles:    []string{"docs/api.md"},
+		Model:           "claude-sonnet-4-5-20250514",
 		Resources: &config.ResourceConfig{
 			Memory: "8g",
 			CPUs:   "4",
