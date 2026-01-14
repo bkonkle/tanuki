@@ -33,6 +33,7 @@ logs/
 # Test coverage
 coverage/
 .nyc_output/
+coverage.out
 
 # Cache directories
 .cache/
