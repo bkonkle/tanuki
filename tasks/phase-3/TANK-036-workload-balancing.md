@@ -4,7 +4,7 @@ title: Workload Balancing
 status: todo
 priority: medium
 estimate: M
-depends_on: [TANK-030, TANK-006]
+depends_on: []
 workstream: B
 phase: 3
 ---
@@ -13,7 +13,12 @@ phase: 3
 
 ## Summary
 
-Implement workload balancing strategies for distributing tasks across agents. The balancer decides which agent should receive a task based on role matching, current workload, and agent availability.
+Implement workload balancing strategies for distributing tasks across agents. The balancer decides
+which agent should receive a task based on role matching, current workload, and agent availability.
+
+**Interface-based:** This task defines its own `Task` and `Agent` interfaces for balancing
+operations. It does not depend on concrete implementations from Workstream A. Integration with
+actual managers happens during the integration phase.
 
 ## Acceptance Criteria
 

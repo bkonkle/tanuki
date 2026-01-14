@@ -4,7 +4,7 @@ title: Agent Service Injection
 status: todo
 priority: medium
 estimate: M
-depends_on: [TANK-040, TANK-006]
+depends_on: []
 workstream: B
 phase: 4
 ---
@@ -13,7 +13,13 @@ phase: 4
 
 ## Summary
 
-Automatically inject service connection information into agent containers as environment variables. This allows agents to connect to shared services (Postgres, Redis, etc.) without manual configuration.
+Automatically inject service connection information into agent containers as environment variables.
+This allows agents to connect to shared services (Postgres, Redis, etc.) without manual
+configuration.
+
+**Interface-based:** This task defines a `ServiceManager` interface for retrieving connection info.
+It does not depend on concrete implementations from Workstream A. Integration with actual
+implementations happens during the integration phase.
 
 ## Acceptance Criteria
 

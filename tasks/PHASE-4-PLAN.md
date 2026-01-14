@@ -49,55 +49,63 @@ Phase 4 extends Tanuki with shared infrastructure services (databases, caches) a
 
 ## Workstreams
 
-Phase 4 is organized into **3 concurrent workstreams** that can be executed in parallel.
+Phase 4 is organized into **3 fully independent workstreams** that can be executed in parallel
+from the start. Each workstream owns a complete vertical slice with no cross-dependencies.
 
-```
+```text
 Phase 4: Shared Services and Advanced Features
-├── Workstream A: Shared Services (sequential)
-│   └── TANK-040 → TANK-042 → TANK-043
+├── Workstream A: Service Engine (internal/service/ core)
+│   └── TANK-040 (Manager) + TANK-042 (Config) + TANK-043 (Health)
 │
-├── Workstream B: Service Integration (parallel after TANK-040)
-│   ├── TANK-044 (Service Commands)
-│   └── TANK-045 (Agent Service Injection)
+├── Workstream B: Service CLI + Agent Injection (interface-based)
+│   └── TANK-044 (Commands) + TANK-045 (Injection)
 │
-└── Workstream C: TUI Dashboard (independent)
-    ├── TANK-041 → TANK-046 → TANK-047 → TANK-048
-    └── (can start in parallel with Workstream A)
+└── Workstream C: TUI Dashboard (fully independent)
+    └── TANK-041 (Framework) + TANK-046 (Agents) + TANK-047 (Tasks) + TANK-048 (Logs)
 ```
 
 ---
 
 ## Task Breakdown
 
-### Workstream A: Shared Services (sequential)
+### Workstream A: Service Engine
 
-These tasks build the core service infrastructure.
+Complete service infrastructure — manager, config schema, and health monitoring. No CLI code.
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-040 | Service Manager Core | medium | L | TANK-005 | Service lifecycle: start, stop, health checks |
-| TANK-042 | Service Configuration Schema | medium | M | TANK-040 | YAML schema for service definitions in tanuki.yaml |
-| TANK-043 | Service Health Monitoring | medium | M | TANK-040 | Health check loop, restart on failure, status reporting |
+| ID       | Task                         | Priority | Est | WS | Description                   |
+|----------|------------------------------| ---------|-----|----|-------------------------------|
+| TANK-040 | Service Manager Core         | medium   | L   | A  | Service lifecycle management  |
+| TANK-042 | Service Configuration Schema | medium   | M   | A  | YAML schema in tanuki.yaml    |
+| TANK-043 | Service Health Monitoring    | medium   | M   | A  | Health check loop, restart    |
 
-### Workstream B: Service Integration (parallel after TANK-040)
+**Scope:** `internal/service/manager.go`, `internal/service/schema.go`,
+`internal/service/health.go`, `internal/service/types.go` + tests
 
-These tasks integrate services with the agent system.
+### Workstream B: Service CLI + Agent Injection
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-044 | Service Commands | medium | S | TANK-040 | CLI: service start/stop/status/connect |
-| TANK-045 | Agent Service Injection | medium | M | TANK-040, TANK-006 | Inject connection info into agent containers |
+CLI commands and container integration, coded against interfaces.
 
-### Workstream C: TUI Dashboard (independent)
+| ID       | Task                    | Priority | Est | WS | Description                  |
+|----------|-------------------------| ---------|-----|----|------------------------------|
+| TANK-044 | Service Commands        | medium   | S   | B  | service start/stop/status    |
+| TANK-045 | Agent Service Injection | medium   | M   | B  | Inject connection env vars   |
 
-These tasks build the interactive dashboard. Can run in parallel with Workstream A.
+**Scope:** `internal/cli/service.go`, `internal/service/inject.go`,
+updates to `internal/docker/container.go` and `internal/agent/manager.go`
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-041 | Dashboard Framework | low | L | TANK-010 | BubbleTea setup, model, basic layout |
-| TANK-046 | Dashboard Agent Pane | low | M | TANK-041 | Agent list view with status, selection |
-| TANK-047 | Dashboard Task Pane | low | M | TANK-041, TANK-031 | Task list view with status, filtering |
-| TANK-048 | Dashboard Log Pane | low | L | TANK-041, TANK-012 | Real-time log streaming, follow mode |
+### Workstream C: TUI Dashboard
+
+Complete BubbleTea dashboard — fully independent of other Phase 4 work.
+
+| ID       | Task                 | Priority | Est | WS | Description                  |
+|----------|----------------------| ---------|-----|----|------------------------------|
+| TANK-041 | Dashboard Framework  | low      | L   | C  | BubbleTea setup, layout      |
+| TANK-046 | Dashboard Agent Pane | low      | M   | C  | Agent list with status       |
+| TANK-047 | Dashboard Task Pane  | low      | M   | C  | Task list with filtering     |
+| TANK-048 | Dashboard Log Pane   | low      | L   | C  | Real-time log streaming      |
+
+**Scope:** `internal/tui/dashboard.go`, `internal/tui/agents.go`, `internal/tui/tasks.go`,
+`internal/tui/logs.go`, `internal/tui/styles.go`, `internal/cli/dashboard.go` + tests
 
 ---
 
@@ -309,38 +317,31 @@ Logs: backend-agent                     [f]ollow
 
 ## Parallelization Guide
 
-### Maximum Parallelism (3 agents)
+### True Parallel Execution (3 tabs/agents)
 
-**Sprint 1: Foundation**
-```
-Agent 1: TANK-040 → TANK-042 → TANK-043
-Agent 2: TANK-041 → TANK-046
-Agent 3: (wait for TANK-041) → TANK-047
-```
+All workstreams start immediately with no waiting:
 
-**Sprint 2: Integration & Polish**
-```
-Agent 1: TANK-044 → TANK-045
-Agent 2: TANK-048
-Agent 3: (integration testing / polish)
+```text
+Tab A (Service Engine): TANK-040 → TANK-042 → TANK-043
+Tab B (Service CLI):    TANK-044, TANK-045
+Tab C (TUI Dashboard):  TANK-041 → TANK-046 → TANK-047 → TANK-048
 ```
 
-### Moderate Parallelism (2 agents)
+**Integration Phase:** After all tabs complete, one agent integrates:
 
-**Sprint 1: Core Features**
-```
-Agent 1: TANK-040 → TANK-042 → TANK-043 → TANK-044 → TANK-045
-Agent 2: TANK-041 → TANK-046 → TANK-047 → TANK-048
-```
+- Wire ServiceManager into CLI commands
+- Connect service injection to agent spawning
+- Run end-to-end tests
 
 ### Sequential Path (1 agent)
 
-```
+```text
 TANK-040 → TANK-042 → TANK-043 → TANK-044 → TANK-045
     → TANK-041 → TANK-046 → TANK-047 → TANK-048
 ```
 
-**Minimum viable:**
+Minimum viable:
+
 - Services: Stop after TANK-044 for basic `service start/stop/status`
 - Dashboard: Stop after TANK-046 for basic agent monitoring
 
@@ -431,21 +432,28 @@ type LogLine struct {
 
 ## Task Status Summary
 
-| ID | Task | Status | Workstream | Priority |
-|----|------|--------|------------|----------|
-| TANK-040 | Service Manager Core | todo | A | medium |
-| TANK-042 | Service Configuration Schema | todo | A | medium |
-| TANK-043 | Service Health Monitoring | todo | A | medium |
-| TANK-044 | Service Commands | todo | B | medium |
-| TANK-045 | Agent Service Injection | todo | B | medium |
-| TANK-041 | Dashboard Framework | todo | C | low |
-| TANK-046 | Dashboard Agent Pane | todo | C | low |
-| TANK-047 | Dashboard Task Pane | todo | C | low |
-| TANK-048 | Dashboard Log Pane | todo | C | low |
+| ID       | Task                         | Status | WS | Description                  |
+|----------|------------------------------|--------|----|------------------------------|
+| TANK-040 | Service Manager Core         | todo   | A  | Service lifecycle management |
+| TANK-042 | Service Configuration Schema | todo   | A  | YAML schema in tanuki.yaml   |
+| TANK-043 | Service Health Monitoring    | todo   | A  | Health check loop, restart   |
+| TANK-044 | Service Commands             | todo   | B  | service start/stop/status    |
+| TANK-045 | Agent Service Injection      | todo   | B  | Inject connection env vars   |
+| TANK-041 | Dashboard Framework          | todo   | C  | BubbleTea setup, layout      |
+| TANK-046 | Dashboard Agent Pane         | todo   | C  | Agent list with status       |
+| TANK-047 | Dashboard Task Pane          | todo   | C  | Task list with filtering     |
+| TANK-048 | Dashboard Log Pane           | todo   | C  | Real-time log streaming      |
 
-**Total: 9 tasks** (2 existing expanded + 7 new)
+Total: 9 tasks
 
-**Estimates:**
+By Workstream:
+
+- A (Service Engine): 3 tasks (TANK-040, TANK-042, TANK-043)
+- B (Service CLI): 2 tasks (TANK-044, TANK-045)
+- C (TUI Dashboard): 4 tasks (TANK-041, TANK-046, TANK-047, TANK-048)
+
+Estimates:
+
 - Small (S): 1 task
 - Medium (M): 5 tasks
 - Large (L): 3 tasks

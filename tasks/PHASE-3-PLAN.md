@@ -50,100 +50,91 @@ Phase 3 extends Tanuki with automated task distribution across multiple agents. 
 
 ## Workstreams
 
-Phase 3 is organized into **3 concurrent workstreams** that can be executed in parallel after the foundation is complete.
+Phase 3 is organized into **3 fully independent workstreams** that can be executed in parallel
+from the start. Each workstream owns a complete vertical slice with no cross-dependencies.
 
 ```
 Phase 3: Task Queue and Project Mode
-├── Workstream A: Task Infrastructure (sequential)
-│   └── TANK-030 → TANK-033 → TANK-035
+├── Workstream A: Task Engine (internal/task/ core)
+│   └── TANK-030 (Schema) + TANK-033 (Manager) + TANK-035 (Dependencies)
 │
-├── Workstream B: Queue and Distribution (parallel after TANK-030)
-│   ├── TANK-034 (Task Queue)
-│   ├── TANK-036 (Workload Balancing)
-│   └── TANK-037 (Status Tracking)
+├── Workstream B: Queue + Balancer + Status (standalone components)
+│   └── TANK-034 (Queue) + TANK-036 (Balancer) + TANK-037 (Status)
 │
-└── Workstream C: Orchestration and Commands (after A + B)
-    ├── TANK-031 (Project Commands)
-    ├── TANK-032 (Task Completion/Validation)
-    └── TANK-038 (Project Orchestrator)
+└── Workstream C: Project Commands + Orchestrator (interface-based)
+    └── TANK-031 (Commands) + TANK-032 (Validation) + TANK-038 (Orchestrator)
 ```
 
 ---
 
 ## Task Breakdown
 
-### Workstream A: Task Infrastructure (sequential)
+### Workstream A: Task Engine
 
-These tasks build the core task system infrastructure and must be completed first.
+Complete task infrastructure — parser, manager, and dependency resolution. No queue or CLI code.
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-030 | Task File Schema | high | M | TANK-020 | Define markdown + YAML schema for tasks |
-| TANK-033 | Task Manager Implementation | high | M | TANK-030 | Core TaskManager with scan/get/update |
-| TANK-035 | Dependency Resolver | high | M | TANK-033 | Topological sort, cycle detection |
+| ID       | Task                        | Priority | Est | WS | Description                    |
+|----------|-----------------------------| ---------|-----|----|--------------------------------|
+| TANK-030 | Task File Schema            | high     | M   | A  | Task struct, markdown parser   |
+| TANK-033 | Task Manager Implementation | high     | M   | A  | Scan/get/update/assign tasks   |
+| TANK-035 | Dependency Resolver         | high     | M   | A  | Topological sort, cycle detect |
 
-### Workstream B: Queue and Distribution (parallel after TANK-030)
+**Scope:** `internal/task/schema.go`, `internal/task/parser.go`, `internal/task/manager.go`,
+`internal/task/dependency.go` + tests
 
-These tasks implement the queue mechanics. Can be worked on concurrently once TANK-030 is complete.
+### Workstream B: Queue + Balancer + Status
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-034 | Task Queue | high | M | TANK-030 | Priority queue with role-aware dequeue |
-| TANK-036 | Workload Balancing | medium | M | TANK-030, TANK-006 | Agent assignment strategy |
-| TANK-037 | Status Tracking | medium | S | TANK-030 | Task status updates, history, events |
+Standalone queue mechanics and workload distribution. No external dependencies.
 
-### Workstream C: Orchestration and Commands (after A + B)
+| ID       | Task               | Priority | Est | WS | Description                 |
+|----------|--------------------| ---------|-----|----|------------------------------|
+| TANK-034 | Task Queue         | high     | M   | B  | Priority queue, role-aware  |
+| TANK-036 | Workload Balancing | medium   | M   | B  | Agent assignment strategy   |
+| TANK-037 | Status Tracking    | medium   | S   | B  | Status transitions, history |
 
-These tasks tie everything together into user-facing functionality.
+**Scope:** `internal/task/queue.go`, `internal/task/balancer.go`, `internal/task/status.go` + tests
 
-| ID | Task | Priority | Estimate | Depends On | Description |
-|----|------|----------|----------|------------|-------------|
-| TANK-031 | Project Commands | high | L | TANK-033, TANK-034 | CLI: project init/start/status/stop |
-| TANK-032 | Task Completion and Validation | high | L | TANK-031 | Ralph-style verify, auto-reassign |
-| TANK-038 | Project Orchestrator | high | L | TANK-031, TANK-032, TANK-036 | Main control loop, event handling |
+### Workstream C: Project Commands + Orchestrator
+
+CLI commands and orchestration loop, coded against interfaces (not concrete implementations).
+
+| ID       | Task                           | Priority | Est | WS | Description                    |
+|----------|--------------------------------| ---------|-----|----|--------------------------------|
+| TANK-031 | Project Commands               | high     | L   | C  | project init/start/status/stop |
+| TANK-032 | Task Completion and Validation | high     | L   | C  | Ralph-style verify, reassign   |
+| TANK-038 | Project Orchestrator           | high     | L   | C  | Main control loop, events      |
+
+**Scope:** `internal/cli/project.go`, `internal/project/orchestrator.go`,
+`internal/project/validator.go`, `internal/project/status.go` + tests
 
 ---
 
 ## Parallelization Guide
 
-### Maximum Parallelism (3 agents)
+### True Parallel Execution (3 tabs/agents)
 
-**Sprint 1: Foundation + Queue Infrastructure**
-```
-Agent 1: TANK-030 → TANK-033 → TANK-035
-Agent 2: (wait for TANK-030) → TANK-034 → TANK-037
-Agent 3: (wait for TANK-030) → TANK-036
-```
+All workstreams start immediately with no waiting:
 
-**Sprint 2: Commands and Orchestration**
-```
-Agent 1: TANK-031 (Project Commands)
-Agent 2: TANK-032 (Task Completion)
-Agent 3: TANK-038 (Project Orchestrator)
+```text
+Tab A (Task Engine):    TANK-030 → TANK-033 → TANK-035
+Tab B (Queue+Balancer): TANK-034, TANK-036, TANK-037
+Tab C (Project CLI):    TANK-031, TANK-032, TANK-038
 ```
 
-### Moderate Parallelism (2 agents)
+**Integration Phase:** After all tabs complete, one agent integrates:
 
-**Sprint 1: Core Infrastructure**
-```
-Agent 1: TANK-030 → TANK-033 → TANK-035 → TANK-031
-Agent 2: (wait for TANK-030) → TANK-034 → TANK-036 → TANK-037
-```
-
-**Sprint 2: Orchestration and Validation**
-```
-Agent 1: TANK-032 (Task Completion)
-Agent 2: TANK-038 (Project Orchestrator)
-```
+- Wire TaskManager into orchestrator
+- Connect queue and balancer to orchestrator loop
+- Run end-to-end tests with sample task files
 
 ### Sequential Path (1 agent)
 
-```
+```text
 TANK-030 → TANK-033 → TANK-035 → TANK-034 → TANK-036 → TANK-037
     → TANK-031 → TANK-032 → TANK-038
 ```
 
-**Minimum viable:** Stop after TANK-031 to have basic `project init/start/status`.
+Minimum viable: Stop after TANK-033 + TANK-031 for basic `project init/start/status`.
 
 ---
 
@@ -316,21 +307,28 @@ type ProjectOrchestrator interface {
 
 ## Task Status Summary
 
-| ID | Task | Status | Workstream |
-|----|------|--------|------------|
-| TANK-030 | Task File Schema | todo | A |
-| TANK-033 | Task Manager Implementation | todo | A |
-| TANK-035 | Dependency Resolver | todo | A |
-| TANK-034 | Task Queue | todo | B |
-| TANK-036 | Workload Balancing | todo | B |
-| TANK-037 | Status Tracking | todo | B |
-| TANK-031 | Project Commands | todo | C |
-| TANK-032 | Task Completion and Validation | todo | C |
-| TANK-038 | Project Orchestrator | todo | C |
+| ID       | Task                           | Status | WS | Description                    |
+|----------|--------------------------------|--------|----|--------------------------------|
+| TANK-030 | Task File Schema               | todo   | A  | Task struct, markdown parser   |
+| TANK-033 | Task Manager Implementation    | todo   | A  | Scan/get/update/assign tasks   |
+| TANK-035 | Dependency Resolver            | todo   | A  | Topological sort, cycle detect |
+| TANK-034 | Task Queue                     | todo   | B  | Priority queue, role-aware     |
+| TANK-036 | Workload Balancing             | todo   | B  | Agent assignment strategy      |
+| TANK-037 | Status Tracking                | todo   | B  | Status transitions, history    |
+| TANK-031 | Project Commands               | todo   | C  | project init/start/status/stop |
+| TANK-032 | Task Completion and Validation | todo   | C  | Ralph-style verify, reassign   |
+| TANK-038 | Project Orchestrator           | todo   | C  | Main control loop, events      |
 
-**Total: 9 tasks** (3 existing expanded + 6 new)
+Total: 9 tasks
 
-**Estimates:**
+By Workstream:
+
+- A (Task Engine): 3 tasks (TANK-030, TANK-033, TANK-035)
+- B (Queue+Balancer): 3 tasks (TANK-034, TANK-036, TANK-037)
+- C (Project CLI): 3 tasks (TANK-031, TANK-032, TANK-038)
+
+Estimates:
+
 - Small (S): 1 task
 - Medium (M): 5 tasks
 - Large (L): 3 tasks

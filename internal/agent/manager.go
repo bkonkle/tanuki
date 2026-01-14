@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bkonkle/tanuki/internal/config"
+	"github.com/bkonkle/tanuki/internal/context"
 	"github.com/bkonkle/tanuki/internal/docker"
 	"github.com/bkonkle/tanuki/internal/executor"
 	"github.com/bkonkle/tanuki/internal/state"
@@ -70,6 +73,8 @@ type GitStatus struct {
 type SpawnOptions struct {
 	// Branch specifies an existing branch to use (optional)
 	Branch string
+	// Role specifies the role to assign to the agent (optional)
+	Role string
 }
 
 // RemoveOptions configures agent removal.
@@ -152,14 +157,29 @@ type StateManager interface {
 // State is an alias for state.State for convenience.
 type State = state.State
 
+// RoleInfo contains role information needed by the agent manager.
+type RoleInfo struct {
+	Name            string
+	SystemPrompt    string
+	AllowedTools    []string
+	DisallowedTools []string
+	ContextFiles    []string
+}
+
+// RoleManager defines the interface for role operations.
+type RoleManager interface {
+	GetRoleInfo(name string) (*RoleInfo, error)
+}
+
 // Manager handles agent lifecycle operations, coordinating Git worktrees,
 // Docker containers, persistent state, and Claude Code execution.
 type Manager struct {
-	config   *config.Config
-	git      GitManager
-	docker   DockerManager
-	state    StateManager
-	executor ClaudeExecutor
+	config      *config.Config
+	git         GitManager
+	docker      DockerManager
+	state       StateManager
+	executor    ClaudeExecutor
+	roleManager RoleManager
 }
 
 // NewManager creates a new agent manager.
@@ -186,12 +206,19 @@ func NewManager(cfg *config.Config, git GitManager, docker DockerManager, state 
 	}
 
 	return &Manager{
-		config:   cfg,
-		git:      git,
-		docker:   docker,
-		state:    state,
-		executor: executor,
+		config:      cfg,
+		git:         git,
+		docker:      docker,
+		state:       state,
+		executor:    executor,
+		roleManager: nil, // Will be set via SetRoleManager
 	}, nil
+}
+
+// SetRoleManager sets the role manager for this agent manager.
+// This is optional and allows role-based agent spawning.
+func (m *Manager) SetRoleManager(roleManager RoleManager) {
+	m.roleManager = roleManager
 }
 
 // Spawn creates a new agent with an isolated worktree and container.
@@ -213,21 +240,60 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		return nil, fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// 4. Create container (rollback worktree on failure)
+	// 4. Handle role if specified
+	var roleInfo *RoleInfo
+	if opts.Role != "" {
+		if m.roleManager == nil {
+			m.git.RemoveWorktree(name, true) // Rollback
+			return nil, fmt.Errorf("role specified but role manager not configured")
+		}
+
+		roleInfo, err = m.roleManager.GetRoleInfo(opts.Role)
+		if err != nil {
+			m.git.RemoveWorktree(name, true) // Rollback
+			return nil, fmt.Errorf("failed to get role %q: %w", opts.Role, err)
+		}
+
+		// Copy context files if specified
+		if len(roleInfo.ContextFiles) > 0 {
+			// Get project root from current working directory
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				m.git.RemoveWorktree(name, true) // Rollback
+				return nil, fmt.Errorf("failed to get project root: %w", err)
+			}
+			contextMgr := context.NewManager(projectRoot, false)
+			result, err := contextMgr.CopyContextFiles(worktreePath, roleInfo.ContextFiles)
+			if err != nil {
+				m.git.RemoveWorktree(name, true) // Rollback
+				return nil, fmt.Errorf("failed to copy context files: %w", err)
+			}
+			// Log warnings but don't fail for missing context files
+			_ = result // Result contains Copied, Skipped, and Errors for logging if needed
+		}
+
+		// Generate CLAUDE.md with role system prompt
+		if err := m.generateClaudeMD(worktreePath, roleInfo); err != nil {
+			m.git.RemoveWorktree(name, true) // Rollback
+			return nil, fmt.Errorf("failed to generate CLAUDE.md: %w", err)
+		}
+	}
+
+	// 5. Create container (rollback worktree on failure)
 	containerID, err := m.docker.CreateAgentContainer(name, worktreePath)
 	if err != nil {
 		m.git.RemoveWorktree(name, true) // Rollback
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
-	// 5. Start container (rollback both on failure)
+	// 6. Start container (rollback both on failure)
 	if err := m.docker.StartContainer(containerID); err != nil {
 		m.docker.RemoveContainer(containerID) // Rollback
 		m.git.RemoveWorktree(name, true)      // Rollback
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// 6. Create state entry
+	// 7. Create state entry
 	agent := &Agent{
 		Name:          name,
 		ContainerID:   containerID,
@@ -237,6 +303,13 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		Status:        state.StatusIdle,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
+	}
+
+	// Store role information if role was assigned
+	if roleInfo != nil {
+		agent.Role = roleInfo.Name
+		agent.AllowedTools = roleInfo.AllowedTools
+		agent.DisallowedTools = roleInfo.DisallowedTools
 	}
 
 	if err := m.state.SetAgent(agent); err != nil {
@@ -530,4 +603,27 @@ func validateAgentName(name string) error {
 		return errors.New("name must start with a letter and contain only lowercase letters, numbers, and hyphens")
 	}
 	return nil
+}
+
+// generateClaudeMD creates a CLAUDE.md file in the worktree with role-specific instructions.
+func (m *Manager) generateClaudeMD(worktreePath string, roleInfo *RoleInfo) error {
+	claudeMDPath := filepath.Join(worktreePath, "CLAUDE.md")
+
+	var content strings.Builder
+
+	// Add role system prompt as agent instructions
+	content.WriteString("# Agent Instructions\n\n")
+	content.WriteString(roleInfo.SystemPrompt)
+	content.WriteString("\n")
+
+	// Add context file references if any (will be populated later by context manager)
+	if len(roleInfo.ContextFiles) > 0 {
+		content.WriteString("\n## Context Files\n\n")
+		content.WriteString("Review these files for project context:\n\n")
+		for _, file := range roleInfo.ContextFiles {
+			content.WriteString(fmt.Sprintf("- %s\n", file))
+		}
+	}
+
+	return os.WriteFile(claudeMDPath, []byte(content.String()), 0644)
 }

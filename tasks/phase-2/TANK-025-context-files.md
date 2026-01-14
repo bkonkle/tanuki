@@ -1,11 +1,11 @@
 ---
 id: TANK-025
 title: Context File Management
-status: todo
+status: done
 priority: high
 estimate: M
 depends_on: [TANK-021]
-workstream: B
+workstream: C
 phase: 2
 ---
 

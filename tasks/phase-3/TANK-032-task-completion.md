@@ -13,7 +13,13 @@ phase: 3
 
 ## Summary
 
-Implement task completion detection and validation using Ralph-style objective criteria. When an agent finishes work, verify completion via commands or signal detection, then auto-assign the next available task.
+Implement task completion detection and validation using Ralph-style objective criteria. When an
+agent finishes work, verify completion via commands or signal detection, then auto-assign the next
+available task.
+
+**Interface-based:** This task defines interfaces for task and agent operations. It does not depend
+on concrete implementations from Workstreams A or B. Integration happens during the integration
+phase.
 
 ## Acceptance Criteria
 

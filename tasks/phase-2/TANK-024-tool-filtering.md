@@ -1,7 +1,7 @@
 ---
 id: TANK-024
 title: Role-Based Tool Filtering
-status: todo
+status: done
 priority: high
 estimate: M
 depends_on: [TANK-023]

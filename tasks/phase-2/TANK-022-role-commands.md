@@ -1,7 +1,7 @@
 ---
 id: TANK-022
 title: Role Management Commands
-status: todo
+status: done
 priority: medium
 estimate: S
 depends_on: [TANK-023]

@@ -1,7 +1,7 @@
 ---
 id: TANK-023
 title: Role Manager Implementation
-status: todo
+status: done
 priority: high
 estimate: M
 depends_on: [TANK-020]

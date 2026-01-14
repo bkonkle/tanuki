@@ -1,7 +1,7 @@
 ---
 id: TANK-020
 title: Role Configuration Schema
-status: todo
+status: done
 priority: high
 estimate: M
 depends_on: [TANK-002]

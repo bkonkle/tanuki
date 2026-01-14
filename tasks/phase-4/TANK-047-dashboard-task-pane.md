@@ -4,7 +4,7 @@ title: Dashboard Task Pane
 status: todo
 priority: low
 estimate: M
-depends_on: [TANK-041, TANK-031]
+depends_on: [TANK-041]
 workstream: C
 phase: 4
 ---
@@ -13,7 +13,13 @@ phase: 4
 
 ## Summary
 
-Implement the task list pane for the TUI dashboard with status filtering and task details. This pane shows all project tasks with their current status, assigned agent, and allows basic task management.
+Implement the task list pane for the TUI dashboard with status filtering and task details. This
+pane shows all project tasks with their current status, assigned agent, and allows basic task
+management.
+
+**Interface-based:** This task defines a `TaskManager` interface for retrieving task data. It does
+not depend on concrete implementations from Phase 3. Integration with actual implementations
+happens during the integration phase.
 
 ## Acceptance Criteria
 

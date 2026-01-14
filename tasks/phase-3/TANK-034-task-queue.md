@@ -4,7 +4,7 @@ title: Task Queue
 status: todo
 priority: high
 estimate: M
-depends_on: [TANK-030]
+depends_on: []
 workstream: B
 phase: 3
 ---
@@ -14,6 +14,10 @@ phase: 3
 ## Summary
 
 Implement a priority-based task queue that supports role-aware dequeuing. The queue maintains pending tasks sorted by priority and allows agents to request tasks matching their role.
+
+**Interface-based:** This task defines its own `Task` interface/types for queue operations. It does
+not depend on concrete implementations from Workstream A. Integration with the actual TaskManager
+happens during the integration phase.
 
 ## Acceptance Criteria
 

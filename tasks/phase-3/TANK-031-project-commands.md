@@ -4,7 +4,7 @@ title: Project Commands
 status: todo
 priority: high
 estimate: L
-depends_on: [TANK-033, TANK-034]
+depends_on: []
 workstream: C
 phase: 3
 ---
@@ -13,7 +13,13 @@ phase: 3
 
 ## Summary
 
-Implement project-level CLI commands for managing task-driven agent workflows. These commands provide the user interface for initializing, starting, monitoring, and stopping project-based task distribution.
+Implement project-level CLI commands for managing task-driven agent workflows. These commands
+provide the user interface for initializing, starting, monitoring, and stopping project-based task
+distribution.
+
+**Interface-based:** This task defines interfaces for `TaskManager` and `TaskQueue` that it codes
+against. It does not depend on concrete implementations from Workstreams A or B. Integration with
+actual implementations happens during the integration phase.
 
 ## Acceptance Criteria
 

@@ -4,7 +4,7 @@ title: Project Orchestrator
 status: todo
 priority: high
 estimate: L
-depends_on: [TANK-031, TANK-032, TANK-036]
+depends_on: [TANK-031, TANK-032]
 workstream: C
 phase: 3
 ---
@@ -13,7 +13,13 @@ phase: 3
 
 ## Summary
 
-Implement the central orchestration loop that coordinates all Phase 3 components. The orchestrator manages the project lifecycle, handles events, and ensures continuous task distribution until all work is complete.
+Implement the central orchestration loop that coordinates all Phase 3 components. The orchestrator
+manages the project lifecycle, handles events, and ensures continuous task distribution until all
+work is complete.
+
+**Interface-based:** This task defines interfaces for `TaskManager`, `Queue`, `Balancer`, and
+`Validator`. It does not depend on concrete implementations from Workstreams A or B. Integration
+with actual implementations happens during the integration phase.
 
 ## Acceptance Criteria
 

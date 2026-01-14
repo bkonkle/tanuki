@@ -1,7 +1,7 @@
 ---
 id: TANK-027
 title: Role Template Generation
-status: todo
+status: done
 priority: medium
 estimate: S
 depends_on: [TANK-023]

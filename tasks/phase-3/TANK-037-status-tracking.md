@@ -4,7 +4,7 @@ title: Status Tracking
 status: todo
 priority: medium
 estimate: S
-depends_on: [TANK-030]
+depends_on: []
 workstream: B
 phase: 3
 ---
@@ -13,7 +13,12 @@ phase: 3
 
 ## Summary
 
-Implement comprehensive status tracking for tasks, including status history, events, and real-time updates. This provides visibility into task lifecycle and enables monitoring features.
+Implement comprehensive status tracking for tasks, including status history, events, and real-time
+updates. This provides visibility into task lifecycle and enables monitoring features.
+
+**Interface-based:** This task defines its own `Status` types and interfaces. It does not depend on
+concrete implementations from Workstream A. Integration with the actual TaskManager happens during
+the integration phase.
 
 ## Acceptance Criteria
 

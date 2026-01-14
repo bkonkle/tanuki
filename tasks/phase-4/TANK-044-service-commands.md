@@ -4,7 +4,7 @@ title: Service Commands
 status: todo
 priority: medium
 estimate: S
-depends_on: [TANK-040]
+depends_on: []
 workstream: B
 phase: 4
 ---
@@ -13,7 +13,12 @@ phase: 4
 
 ## Summary
 
-Add CLI commands for managing shared services. Commands allow starting, stopping, checking status, viewing logs, and connecting to services interactively.
+Add CLI commands for managing shared services. Commands allow starting, stopping, checking status,
+viewing logs, and connecting to services interactively.
+
+**Interface-based:** This task defines a `ServiceManager` interface that it codes against. It does
+not depend on concrete implementations from Workstream A. Integration with actual implementations
+happens during the integration phase.
 
 ## Acceptance Criteria
 

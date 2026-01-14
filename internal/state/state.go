@@ -70,6 +70,15 @@ type Agent struct {
 
 	// LastTask contains information about the last task executed
 	LastTask *TaskInfo `json:"last_task,omitempty"`
+
+	// Role is the assigned role name (if any)
+	Role string `json:"role,omitempty"`
+
+	// AllowedTools is the list of tools this agent is allowed to use
+	AllowedTools []string `json:"allowed_tools,omitempty"`
+
+	// DisallowedTools is the list of tools this agent is not allowed to use
+	DisallowedTools []string `json:"disallowed_tools,omitempty"`
 }
 
 // TaskInfo contains information about a task execution.

@@ -1,11 +1,11 @@
 ---
 id: TANK-021
 title: Spawn with Role Assignment
-status: todo
+status: done
 priority: high
 estimate: M
 depends_on: [TANK-009, TANK-023]
-workstream: B
+workstream: C
 phase: 2
 ---
 
