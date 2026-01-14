@@ -3,15 +3,18 @@ package service
 import (
 	"fmt"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Injector builds environment variables from service connections for agent containers.
 type Injector struct {
-	manager Manager
+	manager ManagerInterface
 }
 
 // NewInjector creates a new service injector.
-func NewInjector(manager Manager) *Injector {
+func NewInjector(manager ManagerInterface) *Injector {
 	return &Injector{
 		manager: manager,
 	}
@@ -103,7 +106,7 @@ func (i *Injector) GenerateDocumentation() string {
 
 	for name, conn := range connections {
 		prefix := strings.ToUpper(name)
-		sb.WriteString(fmt.Sprintf("### %s\n\n", strings.Title(name)))
+		sb.WriteString(fmt.Sprintf("### %s\n\n", cases.Title(language.English).String(name)))
 		sb.WriteString(fmt.Sprintf("- Host: `$%s_HOST` (%s)\n", prefix, conn.Host))
 		sb.WriteString(fmt.Sprintf("- Port: `$%s_PORT` (%d)\n", prefix, conn.Port))
 		sb.WriteString(fmt.Sprintf("- URL: `$%s_URL` (%s)\n", prefix, conn.URL))

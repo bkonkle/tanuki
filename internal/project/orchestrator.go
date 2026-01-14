@@ -226,14 +226,14 @@ func (o *Orchestrator) Stop() error {
 	return nil
 }
 
-// Status returns the current orchestrator status.
-func (o *Orchestrator) Status() *ProjectStatus {
+// GetStatus returns the current orchestrator status.
+func (o *Orchestrator) GetStatus() *Status {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
 	agents, _ := o.agentMgr.List()
 
-	return &ProjectStatus{
+	return &Status{
 		Status:     o.status,
 		StartedAt:  o.started,
 		Uptime:     time.Since(o.started),
@@ -244,8 +244,8 @@ func (o *Orchestrator) Status() *ProjectStatus {
 	}
 }
 
-// ProjectStatus contains project status information.
-type ProjectStatus struct {
+// Status contains project status information.
+type Status struct {
 	Status     OrchestratorStatus
 	StartedAt  time.Time
 	Uptime     time.Duration
@@ -256,10 +256,10 @@ type ProjectStatus struct {
 }
 
 // GetProgress returns detailed progress information.
-func (o *Orchestrator) GetProgress() *ProjectProgress {
+func (o *Orchestrator) GetProgress() *Progress {
 	tasks, _ := o.taskMgr.Scan()
 
-	progress := &ProjectProgress{
+	progress := &Progress{
 		Total:    len(tasks),
 		ByStatus: make(map[task.Status]int),
 		ByRole:   make(map[string]*RoleProgress),
@@ -290,8 +290,8 @@ func (o *Orchestrator) GetProgress() *ProjectProgress {
 	return progress
 }
 
-// ProjectProgress contains detailed progress information.
-type ProjectProgress struct {
+// Progress contains detailed progress information.
+type Progress struct {
 	Total      int
 	Complete   int
 	InProgress int
@@ -314,7 +314,7 @@ func (o *Orchestrator) Events() <-chan task.Event {
 }
 
 // initialize prepares the orchestrator.
-func (o *Orchestrator) initialize(ctx context.Context) error {
+func (o *Orchestrator) initialize(_ context.Context) error {
 	// Scan tasks
 	tasks, err := o.taskMgr.Scan()
 	if err != nil {

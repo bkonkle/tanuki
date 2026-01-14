@@ -31,7 +31,7 @@ func init() {
 	projectCmd.AddCommand(projectInitCmd)
 }
 
-func runProjectInit(cmd *cobra.Command, args []string) error {
+func runProjectInit(_ *cobra.Command, args []string) error {
 	// Get current working directory as project root
 	projectRoot, err := os.Getwd()
 	if err != nil {
@@ -41,7 +41,7 @@ func runProjectInit(cmd *cobra.Command, args []string) error {
 	taskDir := getTasksDir(projectRoot)
 
 	// Ensure base task directory exists
-	if err := os.MkdirAll(taskDir, 0755); err != nil {
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
 		return fmt.Errorf("create task directory: %w", err)
 	}
 
@@ -67,7 +67,7 @@ func initProjectFolder(taskDir, projectName string) error {
 	}
 
 	// Create project directory
-	if err := os.MkdirAll(projectPath, 0755); err != nil {
+	if err := os.MkdirAll(projectPath, 0750); err != nil {
 		return fmt.Errorf("create project directory: %w", err)
 	}
 
@@ -94,7 +94,7 @@ Files agents should understand:
 - Any architecture documentation
 `, projectName)
 
-	if err := os.WriteFile(projectMdPath, []byte(projectDoc), 0644); err != nil {
+	if err := os.WriteFile(projectMdPath, []byte(projectDoc), 0600); err != nil {
 		return fmt.Errorf("write project.md: %w", err)
 	}
 
@@ -130,7 +130,7 @@ This is an example task file. Replace this with your actual task.
 `, projectName)
 
 	examplePath := filepath.Join(projectPath, "001-example.md")
-	if err := os.WriteFile(examplePath, []byte(exampleTask), 0644); err != nil {
+	if err := os.WriteFile(examplePath, []byte(exampleTask), 0600); err != nil {
 		return fmt.Errorf("write example task: %w", err)
 	}
 
@@ -181,7 +181,7 @@ Files agents should understand:
 - Any architecture documentation
 `, projectName)
 
-	if err := os.WriteFile(projectPath, []byte(projectDoc), 0644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(projectDoc), 0600); err != nil {
 		return fmt.Errorf("write project.md: %w", err)
 	}
 
@@ -217,7 +217,7 @@ This is an example task file. Replace this with your actual task.
 `
 
 	examplePath := filepath.Join(taskDir, "TASK-001-example.md")
-	if err := os.WriteFile(examplePath, []byte(exampleTask), 0644); err != nil {
+	if err := os.WriteFile(examplePath, []byte(exampleTask), 0600); err != nil {
 		return fmt.Errorf("write example task: %w", err)
 	}
 

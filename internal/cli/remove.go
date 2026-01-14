@@ -44,7 +44,7 @@ func init() {
 	rootCmd.AddCommand(removeCmd)
 }
 
-func runRemove(cmd *cobra.Command, args []string) error {
+func runRemove(_ *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {

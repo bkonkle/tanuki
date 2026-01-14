@@ -29,7 +29,7 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(_ *cobra.Command, _ []string) error {
 	// Check if in a git repo
 	if !git.IsGitRepo() {
 		return fmt.Errorf("not a git repository, run 'git init' first")
@@ -42,7 +42,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		".tanuki/state",
 	}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("failed to create %s: %w", dir, err)
 		}
 	}
@@ -51,7 +51,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	for _, dir := range []string{".tanuki/worktrees", ".tanuki/state"} {
 		gitkeep := filepath.Join(dir, ".gitkeep")
 		if _, err := os.Stat(gitkeep); os.IsNotExist(err) {
-			if err := os.WriteFile(gitkeep, []byte{}, 0644); err != nil {
+			if err := os.WriteFile(gitkeep, []byte{}, 0600); err != nil {
 				return fmt.Errorf("failed to create %s: %w", gitkeep, err)
 			}
 		}
@@ -124,5 +124,5 @@ func updateGitignore() (bool, error) {
 	}
 	content += "\n" + strings.Join(entries, "\n") + "\n"
 
-	return true, os.WriteFile(gitignorePath, []byte(content), 0644)
+	return true, os.WriteFile(gitignorePath, []byte(content), 0600)
 }

@@ -10,15 +10,15 @@ import (
 	"time"
 )
 
-// DockerManager defines the interface for Docker operations needed by ServiceManager.
+// DockerManager defines the interface for Docker operations needed by Manager.
 type DockerManager interface {
 	EnsureNetwork(name string) error
 	ContainerExists(containerID string) bool
 	ContainerRunning(containerID string) bool
 }
 
-// ServiceManager implements the Manager interface for shared services.
-type ServiceManager struct {
+// Manager implements the ManagerInterface interface for shared services.
+type Manager struct {
 	// services is the configuration for all services.
 	services map[string]*Config
 
@@ -44,8 +44,8 @@ type ServiceManager struct {
 	healthCancel context.CancelFunc
 }
 
-// NewManager creates a new ServiceManager.
-func NewManager(services map[string]*Config, networkName string, docker DockerManager) (*ServiceManager, error) {
+// NewManager creates a new Manager.
+func NewManager(services map[string]*Config, networkName string, docker DockerManager) (*Manager, error) {
 	if services == nil {
 		services = make(map[string]*Config)
 	}
@@ -53,7 +53,7 @@ func NewManager(services map[string]*Config, networkName string, docker DockerMa
 		networkName = "tanuki-net"
 	}
 
-	m := &ServiceManager{
+	m := &Manager{
 		services:    services,
 		networkName: networkName,
 		docker:      docker,
@@ -75,7 +75,7 @@ func NewManager(services map[string]*Config, networkName string, docker DockerMa
 }
 
 // StartServices starts all enabled services.
-func (m *ServiceManager) StartServices() error {
+func (m *Manager) StartServices() error {
 	// Ensure network exists
 	if m.docker != nil {
 		if err := m.docker.EnsureNetwork(m.networkName); err != nil {
@@ -106,7 +106,7 @@ func (m *ServiceManager) StartServices() error {
 }
 
 // StopServices stops all running services.
-func (m *ServiceManager) StopServices() error {
+func (m *Manager) StopServices() error {
 	// Stop health monitoring first
 	if m.healthCancel != nil {
 		m.healthCancel()
@@ -131,7 +131,7 @@ func (m *ServiceManager) StopServices() error {
 }
 
 // StartService starts a specific service by name.
-func (m *ServiceManager) StartService(name string) error {
+func (m *Manager) StartService(name string) error {
 	cfg, ok := m.services[name]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -187,7 +187,7 @@ func (m *ServiceManager) StartService(name string) error {
 	args = append(args, cfg.Image)
 
 	// Run the container
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec // args are constructed from trusted config
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -234,7 +234,7 @@ func (m *ServiceManager) StartService(name string) error {
 }
 
 // StopService stops a specific service by name.
-func (m *ServiceManager) StopService(name string) error {
+func (m *Manager) StopService(name string) error {
 	_, ok := m.services[name]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -248,7 +248,7 @@ func (m *ServiceManager) StopService(name string) error {
 	}
 
 	// Stop the container
-	cmd := exec.Command("docker", "stop", containerName)
+	cmd := exec.Command("docker", "stop", containerName) //nolint:gosec // containerName is constructed from trusted config
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -271,7 +271,7 @@ func (m *ServiceManager) StopService(name string) error {
 }
 
 // GetStatus returns the status of a specific service.
-func (m *ServiceManager) GetStatus(name string) (*Status, error) {
+func (m *Manager) GetStatus(name string) (*Status, error) {
 	_, ok := m.services[name]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -308,7 +308,7 @@ func (m *ServiceManager) GetStatus(name string) (*Status, error) {
 }
 
 // GetAllStatus returns the status of all configured services.
-func (m *ServiceManager) GetAllStatus() map[string]*Status {
+func (m *Manager) GetAllStatus() map[string]*Status {
 	result := make(map[string]*Status)
 
 	for name := range m.services {
@@ -322,13 +322,13 @@ func (m *ServiceManager) GetAllStatus() map[string]*Status {
 }
 
 // IsHealthy checks if a service is healthy.
-func (m *ServiceManager) IsHealthy(name string) bool {
+func (m *Manager) IsHealthy(name string) bool {
 	// Use health monitor for accurate health status
 	return m.healthMonitor.IsHealthy(name)
 }
 
 // GetConnectionInfo returns connection information for a service.
-func (m *ServiceManager) GetConnectionInfo(name string) (*Connection, error) {
+func (m *Manager) GetConnectionInfo(name string) (*Connection, error) {
 	cfg, ok := m.services[name]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -362,7 +362,7 @@ func (m *ServiceManager) GetConnectionInfo(name string) (*Connection, error) {
 }
 
 // GetAllConnections returns connection info for all enabled services.
-func (m *ServiceManager) GetAllConnections() map[string]*Connection {
+func (m *Manager) GetAllConnections() map[string]*Connection {
 	result := make(map[string]*Connection)
 
 	for name, cfg := range m.services {
@@ -380,7 +380,7 @@ func (m *ServiceManager) GetAllConnections() map[string]*Connection {
 }
 
 // waitForHealth waits for a service to become healthy.
-func (m *ServiceManager) waitForHealth(name, containerName string) error {
+func (m *Manager) waitForHealth(name, containerName string) error {
 	cfg := m.services[name]
 	if cfg.Healthcheck == nil {
 		return nil
@@ -402,22 +402,23 @@ func (m *ServiceManager) waitForHealth(name, containerName string) error {
 }
 
 // checkHealth checks if a service is healthy.
-func (m *ServiceManager) checkHealth(name, containerName string) bool {
+func (m *Manager) checkHealth(name, containerName string) bool {
 	cfg := m.services[name]
 	if cfg.Healthcheck == nil || len(cfg.Healthcheck.Command) == 0 {
 		return m.isContainerRunning(containerName)
 	}
 
 	// Execute health check command in container
-	args := []string{"exec", containerName}
+	args := make([]string, 0, 2+len(cfg.Healthcheck.Command))
+	args = append(args, "exec", containerName)
 	args = append(args, cfg.Healthcheck.Command...)
 
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec // args are constructed from trusted config
 	return cmd.Run() == nil
 }
 
 // isContainerRunning checks if a container is running.
-func (m *ServiceManager) isContainerRunning(containerName string) bool {
+func (m *Manager) isContainerRunning(containerName string) bool {
 	// Use docker manager if available
 	if m.docker != nil {
 		return m.docker.ContainerRunning(containerName)
@@ -433,7 +434,7 @@ func (m *ServiceManager) isContainerRunning(containerName string) bool {
 }
 
 // removeContainer removes a container (forcefully).
-func (m *ServiceManager) removeContainer(containerName string) {
+func (m *Manager) removeContainer(containerName string) {
 	cmd := exec.Command("docker", "rm", "-f", containerName)
 	_ = cmd.Run()
 }

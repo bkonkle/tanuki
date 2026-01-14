@@ -499,10 +499,10 @@ func (m *Manager) UpdateBlockedStatus() error {
 			}
 			if blocked && task.Status != StatusBlocked {
 				task.Status = StatusBlocked
-				WriteFile(task)
+				_ = WriteFile(task)
 			} else if !blocked && task.Status == StatusBlocked {
 				task.Status = StatusPending
-				WriteFile(task)
+				_ = WriteFile(task)
 			}
 		}
 	}
@@ -510,8 +510,8 @@ func (m *Manager) UpdateBlockedStatus() error {
 	return nil
 }
 
-// TaskStats holds statistics about tasks.
-type TaskStats struct {
+// Stats holds statistics about tasks.
+type Stats struct {
 	Total        int
 	ByStatus     map[Status]int
 	ByRole       map[string]int
@@ -520,11 +520,11 @@ type TaskStats struct {
 }
 
 // Stats returns task statistics.
-func (m *Manager) Stats() *TaskStats {
+func (m *Manager) Stats() *Stats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	stats := &TaskStats{
+	stats := &Stats{
 		ByStatus:     make(map[Status]int),
 		ByRole:       make(map[string]int),
 		ByPriority:   make(map[Priority]int),

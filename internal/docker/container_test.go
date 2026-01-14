@@ -49,7 +49,7 @@ func cleanupContainer(t *testing.T, containerID string) {
 		return
 	}
 	cmd := exec.Command("docker", "rm", "-f", containerID)
-	cmd.Run() // Ignore errors
+	_ = cmd.Run() // Ignore errors - container may already be removed
 }
 
 // createTestManager creates a Manager for testing.
@@ -126,7 +126,7 @@ func TestCreateContainer_WithMounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	config := ContainerConfig{
 		Name:    "tanuki-test-mount",
@@ -260,8 +260,8 @@ func TestExecWithOutput(t *testing.T) {
 	defer cleanupContainer(t, containerID)
 
 	// Start the container
-	if err := manager.StartContainer(containerID); err != nil {
-		t.Fatalf("StartContainer failed: %v", err)
+	if startErr := manager.StartContainer(containerID); startErr != nil {
+		t.Fatalf("StartContainer failed: %v", startErr)
 	}
 
 	// Execute a command
@@ -326,8 +326,8 @@ func TestStreamLogs(t *testing.T) {
 	defer cleanupContainer(t, containerID)
 
 	// Start the container
-	if err := manager.StartContainer(containerID); err != nil {
-		t.Fatalf("StartContainer failed: %v", err)
+	if startErr := manager.StartContainer(containerID); startErr != nil {
+		t.Fatalf("StartContainer failed: %v", startErr)
 	}
 
 	// Execute a command to generate logs
@@ -341,7 +341,7 @@ func TestStreamLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StreamLogs failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read some logs
 	buf := make([]byte, 1024)
@@ -463,13 +463,13 @@ func TestEnsureNetwork(t *testing.T) {
 	networkName := "tanuki-test-network"
 
 	// Clean up any existing test network
-	exec.Command("docker", "network", "rm", networkName).Run()
+	_ = exec.Command("docker", "network", "rm", networkName).Run()
 
 	// Create the network
 	if err := manager.EnsureNetwork(networkName); err != nil {
 		t.Fatalf("EnsureNetwork failed: %v", err)
 	}
-	defer exec.Command("docker", "network", "rm", networkName).Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", networkName).Run() }()
 
 	// Verify it exists
 	exists, err := NetworkExists(networkName)
@@ -514,13 +514,13 @@ func TestCreateAgentContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Ensure the network exists
-	if err := manager.EnsureNetwork(manager.config.Network.Name); err != nil {
-		t.Fatalf("EnsureNetwork failed: %v", err)
+	if netErr := manager.EnsureNetwork(manager.config.Network.Name); netErr != nil {
+		t.Fatalf("EnsureNetwork failed: %v", netErr)
 	}
-	defer exec.Command("docker", "network", "rm", manager.config.Network.Name).Run()
+	defer func() { _ = exec.Command("docker", "network", "rm", manager.config.Network.Name).Run() }() //nolint:gosec // G204: test cleanup with trusted config value
 
 	containerID, err := manager.CreateAgentContainer("test-agent", tmpDir)
 	if err != nil {

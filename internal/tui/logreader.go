@@ -29,6 +29,7 @@ func NewLogReader(agentName string) *LogReader {
 // Start begins streaming logs from the container.
 func (r *LogReader) Start() error {
 	// Use docker logs with follow, tail last 100 lines
+	// #nosec G204 - containerName is constructed internally from agentName
 	r.cmd = exec.Command("docker", "logs", "-f", "--tail", "100", r.containerName)
 
 	stdout, err := r.cmd.StdoutPipe()
@@ -54,7 +55,7 @@ func (r *LogReader) Start() error {
 }
 
 // readOutput reads lines from the given reader and sends them to the output channel.
-func (r *LogReader) readOutput(reader io.Reader, source string) {
+func (r *LogReader) readOutput(reader io.Reader, _ string) {
 	scanner := bufio.NewScanner(reader)
 
 	// Set a larger buffer size for long lines
@@ -90,7 +91,7 @@ func (r *LogReader) readOutput(reader io.Reader, source string) {
 func (r *LogReader) Stop() {
 	close(r.stopCh)
 	if r.cmd != nil && r.cmd.Process != nil {
-		r.cmd.Process.Kill()
+		_ = r.cmd.Process.Kill()
 	}
 }
 

@@ -186,7 +186,7 @@ func (m *FileManager) applyConfigOverrides(role *Role) {
 		role.SystemPromptFile = roleCfg.SystemPromptFile
 		// Load the prompt from file
 		promptPath := filepath.Join(m.projectRoot, roleCfg.SystemPromptFile)
-		if promptData, err := os.ReadFile(promptPath); err == nil {
+		if promptData, err := os.ReadFile(promptPath); err == nil { //nolint:gosec // G304: File path is from trusted config
 			role.SystemPrompt = string(promptData)
 		}
 	}
@@ -231,7 +231,7 @@ func (m *FileManager) roleFromConfig(name string, cfg *config.RoleConfig) *Role 
 	// Load system prompt from file if specified
 	if role.SystemPromptFile != "" {
 		promptPath := filepath.Join(m.projectRoot, role.SystemPromptFile)
-		if promptData, err := os.ReadFile(promptPath); err == nil {
+		if promptData, err := os.ReadFile(promptPath); err == nil { //nolint:gosec // G304: File path is from trusted config
 			role.SystemPrompt = string(promptData)
 		}
 	}
@@ -241,7 +241,7 @@ func (m *FileManager) roleFromConfig(name string, cfg *config.RoleConfig) *Role 
 
 // LoadFromFile loads a role from a YAML file.
 func (m *FileManager) LoadFromFile(path string) (*Role, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: File path is intentionally provided by caller
 	if err != nil {
 		return nil, fmt.Errorf("read role file: %w", err)
 	}
@@ -262,7 +262,7 @@ func (m *FileManager) LoadFromFile(path string) (*Role, error) {
 	// If SystemPromptFile is set, load the prompt from file
 	if role.SystemPromptFile != "" {
 		promptPath := filepath.Join(m.projectRoot, role.SystemPromptFile)
-		promptData, err := os.ReadFile(promptPath)
+		promptData, err := os.ReadFile(promptPath) //nolint:gosec // G304: File path is from trusted role config
 		if err != nil {
 			return nil, fmt.Errorf("read system prompt file: %w", err)
 		}
@@ -280,7 +280,7 @@ func (m *FileManager) GetBuiltinRoles() []*Role {
 // InitRoles creates default role files in .tanuki/roles/.
 func (m *FileManager) InitRoles() error {
 	// Create roles directory
-	if err := os.MkdirAll(m.rolesDir, 0755); err != nil {
+	if err := os.MkdirAll(m.rolesDir, 0750); err != nil {
 		return fmt.Errorf("create roles directory: %w", err)
 	}
 
@@ -298,7 +298,7 @@ func (m *FileManager) InitRoles() error {
 			return fmt.Errorf("marshal role %q: %w", role.Name, err)
 		}
 
-		if err := os.WriteFile(rolePath, data, 0644); err != nil {
+		if err := os.WriteFile(rolePath, data, 0600); err != nil {
 			return fmt.Errorf("write role file %q: %w", role.Name, err)
 		}
 	}

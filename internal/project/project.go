@@ -83,9 +83,9 @@ func (p *Project) GetRoles() []string {
 	return roles
 }
 
-// Stats returns statistics for this project.
-func (p *Project) Stats() *ProjectStats {
-	stats := &ProjectStats{
+// GetStats returns statistics for this project.
+func (p *Project) GetStats() *Stats {
+	stats := &Stats{
 		Total:      len(p.Tasks),
 		ByStatus:   make(map[task.Status]int),
 		ByRole:     make(map[string]int),
@@ -101,16 +101,16 @@ func (p *Project) Stats() *ProjectStats {
 	return stats
 }
 
-// ProjectStats contains project-level statistics.
-type ProjectStats struct {
+// Stats contains project-level statistics.
+type Stats struct {
 	Total      int
 	ByStatus   map[task.Status]int
 	ByRole     map[string]int
 	ByPriority map[task.Priority]int
 }
 
-// ProjectManager handles loading and managing projects.
-type ProjectManager struct {
+// Manager handles loading and managing projects.
+type Manager struct {
 	mu        sync.RWMutex
 	tasksDir  string
 	projects  map[string]*Project // name -> project
@@ -118,9 +118,9 @@ type ProjectManager struct {
 	taskMgr   *task.Manager
 }
 
-// NewProjectManager creates a new ProjectManager.
-func NewProjectManager(tasksDir string, taskMgr *task.Manager) *ProjectManager {
-	return &ProjectManager{
+// NewManager creates a new Manager.
+func NewManager(tasksDir string, taskMgr *task.Manager) *Manager {
+	return &Manager{
 		tasksDir: tasksDir,
 		projects: make(map[string]*Project),
 		taskMgr:  taskMgr,
@@ -129,7 +129,7 @@ func NewProjectManager(tasksDir string, taskMgr *task.Manager) *ProjectManager {
 
 // Scan discovers all projects and their tasks.
 // It relies on the task manager to scan tasks, then groups them by project.
-func (pm *ProjectManager) Scan() error {
+func (pm *Manager) Scan() error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -171,8 +171,8 @@ func (pm *ProjectManager) Scan() error {
 
 // parseProjectMd reads project.md and extracts the description.
 // Returns the first non-header paragraph as description.
-func (pm *ProjectManager) parseProjectMd(path string) (string, error) {
-	content, err := os.ReadFile(path)
+func (pm *Manager) parseProjectMd(path string) (string, error) {
+	content, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +216,7 @@ func (pm *ProjectManager) parseProjectMd(path string) (string, error) {
 }
 
 // List returns all discovered projects.
-func (pm *ProjectManager) List() []*Project {
+func (pm *Manager) List() []*Project {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
@@ -234,7 +234,7 @@ func (pm *ProjectManager) List() []*Project {
 }
 
 // Get returns a project by name.
-func (pm *ProjectManager) Get(name string) (*Project, error) {
+func (pm *Manager) Get(name string) (*Project, error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
@@ -246,7 +246,7 @@ func (pm *ProjectManager) Get(name string) (*Project, error) {
 }
 
 // GetRootTasks returns tasks that are not part of any project.
-func (pm *ProjectManager) GetRootTasks() []*task.Task {
+func (pm *Manager) GetRootTasks() []*task.Task {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
@@ -256,14 +256,14 @@ func (pm *ProjectManager) GetRootTasks() []*task.Task {
 }
 
 // HasProjects returns true if any project folders exist.
-func (pm *ProjectManager) HasProjects() bool {
+func (pm *Manager) HasProjects() bool {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	return len(pm.projects) > 0
 }
 
 // CreateProject creates a new project folder with project.md.
-func (pm *ProjectManager) CreateProject(name, description string) (*Project, error) {
+func (pm *Manager) CreateProject(name, description string) (*Project, error) {
 	projectPath := filepath.Join(pm.tasksDir, name)
 
 	// Check if already exists
@@ -272,7 +272,7 @@ func (pm *ProjectManager) CreateProject(name, description string) (*Project, err
 	}
 
 	// Create directory
-	if err := os.MkdirAll(projectPath, 0755); err != nil {
+	if err := os.MkdirAll(projectPath, 0750); err != nil {
 		return nil, fmt.Errorf("create project directory: %w", err)
 	}
 
@@ -299,7 +299,7 @@ Files agents should understand:
 `, name, description)
 
 	projectMdPath := filepath.Join(projectPath, "project.md")
-	if err := os.WriteFile(projectMdPath, []byte(projectMd), 0644); err != nil {
+	if err := os.WriteFile(projectMdPath, []byte(projectMd), 0600); err != nil {
 		return nil, fmt.Errorf("write project.md: %w", err)
 	}
 
@@ -318,7 +318,7 @@ Files agents should understand:
 }
 
 // ProjectExists checks if a project folder exists.
-func (pm *ProjectManager) ProjectExists(name string) bool {
+func (pm *Manager) ProjectExists(name string) bool {
 	projectPath := filepath.Join(pm.tasksDir, name)
 	projectMdPath := filepath.Join(projectPath, "project.md")
 	_, err := os.Stat(projectMdPath)

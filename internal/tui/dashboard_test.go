@@ -47,6 +47,16 @@ func (m *mockTaskProvider) ListTasks() ([]*TaskInfo, error) {
 	return m.tasks, nil
 }
 
+// assertModel is a test helper that asserts the tea.Model is a Model and returns it.
+func assertModel(t *testing.T, teaModel tea.Model) Model {
+	t.Helper()
+	m, ok := teaModel.(Model)
+	if !ok {
+		t.Fatal("expected Model type from Update")
+	}
+	return m
+}
+
 func TestNewModel(t *testing.T) {
 	agentProvider := &mockAgentProvider{}
 	taskProvider := &mockTaskProvider{}
@@ -74,7 +84,7 @@ func TestModelUpdate_WindowResize(t *testing.T) {
 	model := NewModel(nil, nil)
 
 	newModel, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if m.width != 100 {
 		t.Errorf("expected width 100, got %d", m.width)
@@ -89,19 +99,19 @@ func TestModelUpdate_TabNavigation(t *testing.T) {
 
 	// Tab should cycle through panes
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if m.activePane != PaneTasks {
 		t.Errorf("expected PaneTasks after first tab, got %v", m.activePane)
 	}
 
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.activePane != PaneLogs {
 		t.Errorf("expected PaneLogs after second tab, got %v", m.activePane)
 	}
 
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.activePane != PaneAgents {
 		t.Errorf("expected PaneAgents after third tab, got %v", m.activePane)
 	}
@@ -112,7 +122,7 @@ func TestModelUpdate_ShiftTabNavigation(t *testing.T) {
 
 	// Shift+Tab should cycle backwards
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if m.activePane != PaneLogs {
 		t.Errorf("expected PaneLogs after shift+tab, got %v", m.activePane)
 	}
@@ -131,28 +141,28 @@ func TestModelUpdate_UpDownNavigation(t *testing.T) {
 
 	// Move down
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if m.agentCursor != 1 {
 		t.Errorf("expected cursor at 1 after down, got %d", m.agentCursor)
 	}
 
 	// Move down again
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.agentCursor != 2 {
 		t.Errorf("expected cursor at 2 after second down, got %d", m.agentCursor)
 	}
 
 	// Move down at bottom should stay
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.agentCursor != 2 {
 		t.Errorf("expected cursor to stay at 2, got %d", m.agentCursor)
 	}
 
 	// Move up
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.agentCursor != 1 {
 		t.Errorf("expected cursor at 1 after up, got %d", m.agentCursor)
 	}
@@ -170,14 +180,14 @@ func TestModelUpdate_JKNavigation(t *testing.T) {
 
 	// j should move down
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if m.agentCursor != 1 {
 		t.Errorf("expected cursor at 1 after j, got %d", m.agentCursor)
 	}
 
 	// k should move up
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.agentCursor != 0 {
 		t.Errorf("expected cursor at 0 after k, got %d", m.agentCursor)
 	}
@@ -188,14 +198,14 @@ func TestModelUpdate_HelpToggle(t *testing.T) {
 
 	// Toggle help on
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if !m.showHelp {
 		t.Error("expected showHelp to be true after ?")
 	}
 
 	// Toggle help off
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.showHelp {
 		t.Error("expected showHelp to be false after second ?")
 	}
@@ -212,7 +222,7 @@ func TestModelUpdate_AgentsRefreshed(t *testing.T) {
 	}
 
 	newModel, _ := model.Update(agentsRefreshedMsg{agents: agents})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if len(m.agents) != 2 {
 		t.Errorf("expected 2 agents, got %d", len(m.agents))
@@ -232,7 +242,7 @@ func TestModelUpdate_TasksRefreshed(t *testing.T) {
 	}
 
 	newModel, _ := model.Update(tasksRefreshedMsg{tasks: tasks})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if len(m.tasks) != 1 {
 		t.Errorf("expected 1 task, got %d", len(m.tasks))
@@ -246,14 +256,14 @@ func TestModelUpdate_FollowToggle(t *testing.T) {
 
 	// Toggle follow off
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if m.logFollow {
 		t.Error("expected logFollow to be false after f")
 	}
 
 	// Toggle follow on
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if !m.logFollow {
 		t.Error("expected logFollow to be true after second f")
 	}
@@ -265,14 +275,14 @@ func TestModelUpdate_PauseToggle(t *testing.T) {
 
 	// Toggle pause on
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 	if !m.logPaused {
 		t.Error("expected logPaused to be true after p")
 	}
 
 	// Toggle pause off
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 	if m.logPaused {
 		t.Error("expected logPaused to be false after second p")
 	}
@@ -286,7 +296,7 @@ func TestModelUpdate_ClearLogs(t *testing.T) {
 	}
 
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if len(m.logs) != 0 {
 		t.Errorf("expected 0 logs after clear, got %d", len(m.logs))
@@ -484,7 +494,7 @@ func TestModel_ShowTaskDetails(t *testing.T) {
 
 	// Press Enter to show task details
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if !m.showTaskDetails {
 		t.Error("expected showTaskDetails to be true after Enter")
@@ -505,7 +515,7 @@ func TestModel_CloseTaskDetails(t *testing.T) {
 
 	// Press Esc to close modal
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if m.showTaskDetails {
 		t.Error("expected showTaskDetails to be false after Esc")
@@ -521,7 +531,7 @@ func TestModel_NoTaskDetailsWhenEmpty(t *testing.T) {
 
 	// Press Enter with no tasks
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if m.showTaskDetails {
 		t.Error("expected showTaskDetails to remain false with no tasks")
@@ -541,7 +551,7 @@ func TestModel_TaskDetailsWithFilter(t *testing.T) {
 
 	// Cursor should be on first filtered task (TASK-002)
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if !m.showTaskDetails {
 		t.Error("expected showTaskDetails to be true")
@@ -563,7 +573,7 @@ func TestModel_LogLineMsg(t *testing.T) {
 	}
 
 	newModel, _ := model.Update(logLineMsg{line: line})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if len(m.logs) != 1 {
 		t.Errorf("expected 1 log after logLineMsg, got %d", len(m.logs))
@@ -586,7 +596,7 @@ func TestModel_LogLineMsg_WhenPaused(t *testing.T) {
 	}
 
 	newModel, _ := model.Update(logLineMsg{line: line})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	// Log should not be added when paused
 	if len(m.logs) != 0 {
@@ -601,7 +611,7 @@ func TestModel_ToggleLogFollow(t *testing.T) {
 
 	// Press 'f' to toggle follow
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if m.logFollow {
 		t.Error("expected logFollow to be false after toggle")
@@ -609,7 +619,7 @@ func TestModel_ToggleLogFollow(t *testing.T) {
 
 	// Press 'f' again to toggle back
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-	m = newModel.(Model)
+	m = assertModel(t, newModel)
 
 	if !m.logFollow {
 		t.Error("expected logFollow to be true after second toggle")
@@ -623,7 +633,7 @@ func TestModel_ToggleLogPause(t *testing.T) {
 
 	// Press 'p' to pause
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if !m.logPaused {
 		t.Error("expected logPaused to be true after toggle")
@@ -646,7 +656,7 @@ func TestModel_ClearLogs(t *testing.T) {
 
 	// Press 'c' to clear
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	m := newModel.(Model)
+	m := assertModel(t, newModel)
 
 	if len(m.logs) != 0 {
 		t.Errorf("expected 0 logs after clear, got %d", len(m.logs))

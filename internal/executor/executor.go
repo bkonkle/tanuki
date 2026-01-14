@@ -232,13 +232,13 @@ func (e *Executor) RunRalph(containerID string, prompt string, opts RalphOptions
 		},
 	}
 
-	fmt.Fprintf(output, "Running Ralph mode (max %d iterations, signal: %q)\n\n",
+	_, _ = fmt.Fprintf(output, "Running Ralph mode (max %d iterations, signal: %q)\n\n",
 		opts.MaxIterations, opts.CompletionSignal)
 
 	// Loop until completion
 	for i := 1; i <= opts.MaxIterations; i++ {
 		result.Iterations = i
-		fmt.Fprintf(output, "\n=== Ralph iteration %d/%d ===\n", i, opts.MaxIterations)
+		_, _ = fmt.Fprintf(output, "\n=== Ralph iteration %d/%d ===\n", i, opts.MaxIterations)
 
 		// Run single iteration
 		iterResult, err := e.runSingleIteration(containerID, prompt, opts.ExecuteOptions, output)
@@ -256,7 +256,7 @@ func (e *Executor) RunRalph(containerID string, prompt string, opts RalphOptions
 
 		// Check for completion signal in output
 		if strings.Contains(iterResult.Output, opts.CompletionSignal) {
-			fmt.Fprintf(output, "\n=== Completion signal detected: %s ===\n", opts.CompletionSignal)
+			_, _ = fmt.Fprintf(output, "\n=== Completion signal detected: %s ===\n", opts.CompletionSignal)
 			result.CompletedBy = "signal"
 			result.CompletedAt = time.Now()
 			return result, nil
@@ -264,20 +264,20 @@ func (e *Executor) RunRalph(containerID string, prompt string, opts RalphOptions
 
 		// Run verify command if specified
 		if opts.VerifyCommand != "" {
-			fmt.Fprintf(output, "\n--- Running verify command: %s ---\n", opts.VerifyCommand)
-			if err := e.runVerifyCommand(containerID, opts.VerifyCommand, output); err == nil {
-				fmt.Fprintf(output, "\n=== Verify command passed ===\n")
+			_, _ = fmt.Fprintf(output, "\n--- Running verify command: %s ---\n", opts.VerifyCommand)
+			err := e.runVerifyCommand(containerID, opts.VerifyCommand, output)
+			if err == nil {
+				_, _ = fmt.Fprintf(output, "\n=== Verify command passed ===\n")
 				result.CompletedBy = "verify"
 				result.CompletedAt = time.Now()
 				return result, nil
-			} else {
-				fmt.Fprintf(output, "Verify failed: %v\n", err)
 			}
+			_, _ = fmt.Fprintf(output, "Verify failed: %v\n", err)
 		}
 
 		// Cooldown between iterations
 		if i < opts.MaxIterations {
-			fmt.Fprintf(output, "\n--- Cooldown: %ds ---\n", opts.CooldownSeconds)
+			_, _ = fmt.Fprintf(output, "\n--- Cooldown: %ds ---\n", opts.CooldownSeconds)
 			time.Sleep(time.Duration(opts.CooldownSeconds) * time.Second)
 		}
 	}
@@ -287,7 +287,7 @@ func (e *Executor) RunRalph(containerID string, prompt string, opts RalphOptions
 	result.CompletedAt = time.Now()
 	result.Error = ErrMaxIterations
 
-	fmt.Fprintf(output, "\n=== Reached max iterations (%d) ===\n", opts.MaxIterations)
+	_, _ = fmt.Fprintf(output, "\n=== Reached max iterations (%d) ===\n", opts.MaxIterations)
 	return result, ErrMaxIterations
 }
 
@@ -496,11 +496,7 @@ func (e *Executor) CheckContainer(containerID string) error {
 	}
 
 	// Verify Claude Code is installed
-	if err := e.VerifyClaudeInstalled(containerID); err != nil {
-		return err
-	}
-
-	return nil
+	return e.VerifyClaudeInstalled(containerID)
 }
 
 // CommandFromShell parses a shell command string into a Docker exec command.

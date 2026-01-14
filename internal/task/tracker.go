@@ -62,7 +62,7 @@ func (st *StatusTracker) RecordChange(taskID string, from, to Status, agentName,
 		func() {
 			defer func() {
 				// Recover from panicking listeners
-				recover()
+				_ = recover()
 			}()
 			listener(change)
 		}()

@@ -65,12 +65,12 @@ func (m *Manager) CreateWorktree(name string) (string, error) {
 
 	// Ensure parent directory exists
 	parentDir := filepath.Dir(absWorktreePath)
-	if err := os.MkdirAll(parentDir, 0755); err != nil {
+	if err := os.MkdirAll(parentDir, 0750); err != nil {
 		return "", fmt.Errorf("failed to create worktree parent directory: %w", err)
 	}
 
 	// Create worktree with new branch
-	cmd := exec.Command("git", "worktree", "add", "-b", branchName, absWorktreePath)
+	cmd := exec.Command("git", "worktree", "add", "-b", branchName, absWorktreePath) //nolint:gosec // G204: branchName and absWorktreePath are derived from validated config inputs
 	cmd.Dir = m.repoRoot
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -87,7 +87,7 @@ func (m *Manager) RemoveWorktree(name string, deleteBranch bool) error {
 	branchName := m.branchName(name)
 
 	// Remove worktree
-	cmd := exec.Command("git", "worktree", "remove", absWorktreePath, "--force")
+	cmd := exec.Command("git", "worktree", "remove", absWorktreePath, "--force") //nolint:gosec // G204: absWorktreePath is derived from validated config inputs
 	cmd.Dir = m.repoRoot
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -97,10 +97,10 @@ func (m *Manager) RemoveWorktree(name string, deleteBranch bool) error {
 
 	// Optionally delete branch
 	if deleteBranch {
-		cmd = exec.Command("git", "branch", "-D", branchName)
+		cmd = exec.Command("git", "branch", "-D", branchName) //nolint:gosec // G204: branchName is derived from validated config inputs
 		cmd.Dir = m.repoRoot
 		// Ignore error if branch doesn't exist
-		cmd.Run()
+		_ = cmd.Run()
 	}
 
 	return nil
@@ -112,7 +112,7 @@ func (m *Manager) GetDiff(name string, baseBranch string) (string, error) {
 	branchName := m.branchName(name)
 
 	// Use three-dot syntax to show changes introduced in branchName
-	cmd := exec.Command("git", "diff", baseBranch+"..."+branchName)
+	cmd := exec.Command("git", "diff", baseBranch+"..."+branchName) //nolint:gosec // G204: baseBranch and branchName are derived from validated config inputs
 	cmd.Dir = m.repoRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -231,7 +231,7 @@ func (m *Manager) worktreePath(name string) string {
 
 // branchExists checks if a branch exists in the repository.
 func (m *Manager) branchExists(branchName string) bool {
-	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branchName) //nolint:gosec // G204: branchName is derived from validated config inputs
 	cmd.Dir = m.repoRoot
 	return cmd.Run() == nil
 }

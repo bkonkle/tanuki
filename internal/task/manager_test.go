@@ -40,7 +40,7 @@ func TestManager_Scan(t *testing.T) {
 	// Setup temp directory with task files
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	if err := os.MkdirAll(tasksDir, 0755); err != nil {
+	if err := os.MkdirAll(tasksDir, 0750); err != nil {
 		t.Fatalf("Failed to create tasks dir: %v", err)
 	}
 
@@ -55,7 +55,7 @@ status: pending
 
 Test content
 `
-	if err := os.WriteFile(filepath.Join(tasksDir, "TASK-001-test.md"), []byte(taskContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tasksDir, "TASK-001-test.md"), []byte(taskContent), 0600); err != nil {
 		t.Fatalf("Failed to write test task: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestManager_Scan_NoDirectory(t *testing.T) {
 	if err != nil {
 		t.Errorf("Scan() error = %v, want nil for missing directory", err)
 	}
-	if tasks != nil && len(tasks) != 0 {
+	if len(tasks) != 0 {
 		t.Errorf("Scan() returned %d tasks, want 0", len(tasks))
 	}
 }
@@ -94,7 +94,7 @@ func TestManager_Scan_NoDirectory(t *testing.T) {
 func TestManager_Scan_SkipsInvalidFiles(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	// Valid task
 	validTask := `---
@@ -105,7 +105,7 @@ role: backend
 
 Content
 `
-	_ = os.WriteFile(filepath.Join(tasksDir, "valid.md"), []byte(validTask), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "valid.md"), []byte(validTask), 0600)
 
 	// Invalid task (missing role)
 	invalidTask := `---
@@ -115,10 +115,10 @@ title: Invalid Task
 
 Content
 `
-	_ = os.WriteFile(filepath.Join(tasksDir, "invalid.md"), []byte(invalidTask), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "invalid.md"), []byte(invalidTask), 0600)
 
 	// Non-md file (should be skipped)
-	_ = os.WriteFile(filepath.Join(tasksDir, "readme.txt"), []byte("text file"), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "readme.txt"), []byte("text file"), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	tasks, err := mgr.Scan()
@@ -375,7 +375,7 @@ func TestManager_GetBlockingTasks(t *testing.T) {
 func TestManager_UpdateStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
 	_ = os.WriteFile(taskPath, []byte(`---
@@ -386,7 +386,7 @@ status: pending
 ---
 
 Content
-`), 0644)
+`), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	_, _ = mgr.Scan()
@@ -430,7 +430,7 @@ func TestManager_UpdateStatus_NotFound(t *testing.T) {
 func TestManager_Assign(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
 	_ = os.WriteFile(taskPath, []byte(`---
@@ -441,7 +441,7 @@ status: pending
 ---
 
 Content
-`), 0644)
+`), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	_, _ = mgr.Scan()
@@ -479,7 +479,7 @@ func TestManager_Assign_NotAvailable(t *testing.T) {
 func TestManager_Unassign(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
 	_ = os.WriteFile(taskPath, []byte(`---
@@ -491,7 +491,7 @@ assigned_to: agent-1
 ---
 
 Content
-`), 0644)
+`), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	_, _ = mgr.Scan()
@@ -516,7 +516,7 @@ Content
 func TestManager_Unassign_KeepsCompleteStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	taskPath := filepath.Join(tasksDir, "TASK-001.md")
 	_ = os.WriteFile(taskPath, []byte(`---
@@ -528,7 +528,7 @@ assigned_to: agent-1
 ---
 
 Content
-`), 0644)
+`), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	_, _ = mgr.Scan()
@@ -550,7 +550,7 @@ Content
 func TestManager_UpdateBlockedStatus(t *testing.T) {
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.MkdirAll(tasksDir, 0750)
 
 	// T1 is pending with no deps
 	_ = os.WriteFile(filepath.Join(tasksDir, "T1.md"), []byte(`---
@@ -560,7 +560,7 @@ role: backend
 status: pending
 ---
 Content
-`), 0644)
+`), 0600)
 
 	// T2 depends on T1 (should become blocked)
 	_ = os.WriteFile(filepath.Join(tasksDir, "T2.md"), []byte(`---
@@ -571,7 +571,7 @@ status: pending
 depends_on: [T1]
 ---
 Content
-`), 0644)
+`), 0600)
 
 	mgr := NewManager(&Config{ProjectRoot: dir})
 	_, _ = mgr.Scan()
@@ -649,7 +649,7 @@ func TestManager_TasksDir(t *testing.T) {
 	}
 }
 
-func TestManager_ConcurrentAccess(t *testing.T) {
+func TestManager_ConcurrentAccess(_ *testing.T) {
 	mgr := &Manager{
 		tasks: map[string]*Task{
 			"T1": {ID: "T1", Role: "backend", Status: StatusPending},
@@ -662,9 +662,9 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			mgr.Get("T1")
+			_, _ = mgr.Get("T1")
 			mgr.GetByRole("backend")
-			mgr.IsBlocked("T1")
+			_, _ = mgr.IsBlocked("T1")
 			mgr.List()
 			mgr.Stats()
 		}()
@@ -771,13 +771,13 @@ func TestManager_Scan_ProjectFolders(t *testing.T) {
 	// Setup temp directory with project folder structure
 	dir := t.TempDir()
 	tasksDir := filepath.Join(dir, "tasks")
-	if err := os.MkdirAll(tasksDir, 0755); err != nil {
+	if err := os.MkdirAll(tasksDir, 0750); err != nil {
 		t.Fatalf("Failed to create tasks dir: %v", err)
 	}
 
 	// Create a project folder
 	projectDir := filepath.Join(tasksDir, "auth-feature")
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
+	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatalf("Failed to create project dir: %v", err)
 	}
 
@@ -786,7 +786,7 @@ func TestManager_Scan_ProjectFolders(t *testing.T) {
 
 Auth feature implementation.
 `
-	if err := os.WriteFile(filepath.Join(projectDir, "project.md"), []byte(projectMd), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "project.md"), []byte(projectMd), 0600); err != nil {
 		t.Fatalf("Failed to write project.md: %v", err)
 	}
 
@@ -802,7 +802,7 @@ workstream: oauth
 
 Implement OAuth flow.
 `
-	if err := os.WriteFile(filepath.Join(projectDir, "001-oauth.md"), []byte(projectTask), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "001-oauth.md"), []byte(projectTask), 0600); err != nil {
 		t.Fatalf("Failed to write project task: %v", err)
 	}
 
@@ -817,7 +817,7 @@ status: pending
 
 A root task.
 `
-	if err := os.WriteFile(filepath.Join(tasksDir, "ROOT-001.md"), []byte(rootTask), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tasksDir, "ROOT-001.md"), []byte(rootTask), 0600); err != nil {
 		t.Fatalf("Failed to write root task: %v", err)
 	}
 

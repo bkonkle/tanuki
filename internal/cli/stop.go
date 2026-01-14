@@ -33,7 +33,7 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 }
 
-func runStop(cmd *cobra.Command, args []string) error {
+func runStop(_ *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {

@@ -74,9 +74,9 @@ func TestNewFileStateManager_ExistingState(t *testing.T) {
 		},
 	}
 
-	_ = os.MkdirAll(filepath.Dir(statePath), 0755)
+	_ = os.MkdirAll(filepath.Dir(statePath), 0750)
 	data, _ := json.Marshal(existingState)
-	_ = os.WriteFile(statePath, data, 0644)
+	_ = os.WriteFile(statePath, data, 0600)
 
 	// Load existing state
 	mgr, err := NewFileStateManager(statePath, nil)
@@ -122,8 +122,8 @@ func TestSetAgent_NewAgent(t *testing.T) {
 		Status:        StatusIdle,
 	}
 
-	if err := mgr.SetAgent(agent); err != nil {
-		t.Fatalf("failed to set agent: %v", err)
+	if setErr := mgr.SetAgent(agent); setErr != nil {
+		t.Fatalf("failed to set agent: %v", setErr)
 	}
 
 	// Verify agent was saved
@@ -175,8 +175,8 @@ func TestSetAgent_UpdateExisting(t *testing.T) {
 
 	// Update agent
 	agent.Status = StatusWorking
-	if err := mgr.SetAgent(agent); err != nil {
-		t.Fatalf("failed to update agent: %v", err)
+	if updateErr := mgr.SetAgent(agent); updateErr != nil {
+		t.Fatalf("failed to update agent: %v", updateErr)
 	}
 
 	retrieved, err := mgr.GetAgent("test-agent")
@@ -215,8 +215,8 @@ func TestRemoveAgent(t *testing.T) {
 	_ = mgr.SetAgent(agent)
 
 	// Remove agent
-	if err := mgr.RemoveAgent("test-agent"); err != nil {
-		t.Fatalf("failed to remove agent: %v", err)
+	if removeErr := mgr.RemoveAgent("test-agent"); removeErr != nil {
+		t.Fatalf("failed to remove agent: %v", removeErr)
 	}
 
 	// Verify agent is gone

@@ -36,7 +36,7 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+func runStatus(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 
 	// Load config
@@ -85,7 +85,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func printStatusText(s *agent.AgentStatus) error {
+func printStatusText(s *agent.Status) error {
 	fmt.Printf("Agent: %s\n", s.Name)
 	fmt.Printf("Status: %s\n", colorStatus(s.Status))
 	fmt.Printf("Uptime: %s\n", formatDuration(s.Uptime))
@@ -129,7 +129,7 @@ func printStatusText(s *agent.AgentStatus) error {
 	return nil
 }
 
-func printStatusJSON(s *agent.AgentStatus) error {
+func printStatusJSON(s *agent.Status) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(s)

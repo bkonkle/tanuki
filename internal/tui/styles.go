@@ -190,13 +190,13 @@ func PaneBorder(focused bool) lipgloss.Style {
 		BorderForeground(borderColor)
 }
 
-// Truncate truncates a string to the given max length, adding "..." if needed.
-func Truncate(s string, max int) string {
-	if len(s) <= max {
+// Truncate truncates a string to the given maxLen length, adding "..." if needed.
+func Truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
 		return s
 	}
-	if max <= 3 {
-		return s[:max]
+	if maxLen <= 3 {
+		return s[:maxLen]
 	}
-	return s[:max-3] + "..."
+	return s[:maxLen-3] + "..."
 }

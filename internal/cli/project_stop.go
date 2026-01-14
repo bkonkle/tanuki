@@ -21,7 +21,7 @@ func init() {
 	projectCmd.AddCommand(projectStopCmd)
 }
 
-func runProjectStop(cmd *cobra.Command, args []string) error {
+func runProjectStop(cmd *cobra.Command, _ []string) error {
 	remove, _ := cmd.Flags().GetBool("remove")
 
 	fmt.Println("Stopping project agents...")

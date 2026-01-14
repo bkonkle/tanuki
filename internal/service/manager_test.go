@@ -18,11 +18,10 @@ func skipIfDockerNotRunning(t *testing.T) {
 
 // mockDockerManager implements DockerManager for unit tests without Docker.
 type mockDockerManager struct {
-	networkEnsured    bool
-	containers        map[string]bool // containerName -> running
-	ensureNetworkErr  error
-	containerExistsRv bool
-	containerRunning  map[string]bool
+	networkEnsured   bool
+	containers       map[string]bool // containerName -> running
+	ensureNetworkErr error
+	containerRunning map[string]bool
 }
 
 func newMockDockerManager() *mockDockerManager {
@@ -32,7 +31,7 @@ func newMockDockerManager() *mockDockerManager {
 	}
 }
 
-func (m *mockDockerManager) EnsureNetwork(name string) error {
+func (m *mockDockerManager) EnsureNetwork(_ string) error {
 	if m.ensureNetworkErr != nil {
 		return m.ensureNetworkErr
 	}
@@ -56,8 +55,8 @@ func (m *mockDockerManager) ContainerRunning(containerID string) bool {
 func cleanupService(t *testing.T, name string) {
 	t.Helper()
 	containerName := ContainerName(name)
-	_ = exec.Command("docker", "stop", containerName).Run()
-	_ = exec.Command("docker", "rm", "-f", containerName).Run()
+	_ = exec.Command("docker", "stop", containerName).Run()     //nolint:gosec // containerName is constructed from trusted test data
+	_ = exec.Command("docker", "rm", "-f", containerName).Run() //nolint:gosec // containerName is constructed from trusted test data
 }
 
 func TestNewManager(t *testing.T) {

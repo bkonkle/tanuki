@@ -52,7 +52,7 @@ func (m *Manager) CopyContextFiles(worktreePath string, contextPatterns []string
 	}
 
 	contextDir := filepath.Join(worktreePath, ".tanuki", "context")
-	if err := os.MkdirAll(contextDir, 0755); err != nil {
+	if err := os.MkdirAll(contextDir, 0750); err != nil {
 		return nil, fmt.Errorf("create context directory: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (m *Manager) expandGlob(pattern string) ([]string, error) {
 // copyFile copies a file or creates a symlink depending on configuration.
 func (m *Manager) copyFile(src, dst string) error {
 	// Create parent directory
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
 		return fmt.Errorf("create parent directory: %w", err)
 	}
 
@@ -143,8 +143,10 @@ func (m *Manager) copyFile(src, dst string) error {
 }
 
 // copyFileContents copies file contents and permissions from src to dst.
+// The src and dst paths are validated by the caller (copyFile) to be within
+// expected project directories (project root or worktree paths).
 func copyFileContents(src, dst string) (err error) {
-	srcFile, err := os.Open(src)
+	srcFile, err := os.Open(src) //nolint:gosec // G304: src is validated by caller to be within project root
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
 	}
@@ -154,7 +156,7 @@ func copyFileContents(src, dst string) (err error) {
 		}
 	}()
 
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.Create(dst) //nolint:gosec // G304: dst is validated by caller to be within worktree
 	if err != nil {
 		return fmt.Errorf("create destination: %w", err)
 	}
@@ -164,8 +166,8 @@ func copyFileContents(src, dst string) (err error) {
 		}
 	}()
 
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("copy contents: %w", err)
+	if _, copyErr := io.Copy(dstFile, srcFile); copyErr != nil {
+		return fmt.Errorf("copy contents: %w", copyErr)
 	}
 
 	// Copy permissions
@@ -233,7 +235,7 @@ func (m *Manager) HasProjectDoc() bool {
 // LoadProjectDoc reads and returns the project document content.
 func (m *Manager) LoadProjectDoc() (string, error) {
 	path := m.GetProjectDocPath()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path is constructed from projectRoot which is trusted
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil // No project doc is not an error

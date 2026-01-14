@@ -409,10 +409,7 @@ func (l *Loader) setDefaults() {
 
 func (l *Loader) loadConfigFile(path string) error {
 	l.v.SetConfigFile(path)
-	if err := l.v.MergeInConfig(); err != nil {
-		return err
-	}
-	return nil
+	return l.v.MergeInConfig()
 }
 
 func (l *Loader) globalConfigPath() string {
@@ -519,12 +516,12 @@ func Write(cfg *Config, path string) error {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // Load is a convenience function that creates a Loader and loads the config.

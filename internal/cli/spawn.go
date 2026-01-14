@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"regexp"
 	"time"
@@ -44,7 +43,7 @@ func init() {
 	rootCmd.AddCommand(spawnCmd)
 }
 
-func runSpawn(cmd *cobra.Command, args []string) error {
+func runSpawn(_ *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -167,19 +166,4 @@ func validateAgentName(name string) error {
 		return fmt.Errorf("agent name must start with a letter, contain only lowercase letters, numbers, and hyphens (got %q)", name)
 	}
 	return nil
-}
-
-// Name generation for when no explicit name is provided
-var (
-	adjectives = []string{"quick", "lazy", "clever", "brave", "calm", "bold", "wise", "swift", "keen", "bright"}
-	nouns      = []string{"fox", "wolf", "bear", "hawk", "deer", "eagle", "tiger", "panther", "falcon", "lynx"}
-)
-
-// generateAgentName generates a random agent name in the format "adjective-noun".
-// This is used when the user doesn't provide an explicit name.
-func generateAgentName() string {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	adj := adjectives[rnd.Intn(len(adjectives))]
-	noun := nouns[rnd.Intn(len(nouns))]
-	return fmt.Sprintf("%s-%s", adj, noun)
 }

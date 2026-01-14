@@ -7,14 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// showTaskDetailsMsg is sent when a task detail modal should be shown.
-type showTaskDetailsMsg struct {
-	task *TaskInfo
-}
-
-// closeModalMsg is sent when the modal should be closed.
-type closeModalMsg struct{}
-
 // TaskDetailsModal renders a modal showing full task details.
 type TaskDetailsModal struct {
 	task   *TaskInfo

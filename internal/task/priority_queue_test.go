@@ -19,17 +19,17 @@ func TestPriorityQueue_Basic(t *testing.T) {
 	}
 
 	// Pop in priority order
-	item1 := heap.Pop(pq).(*queueItem)
+	item1, _ := heap.Pop(pq).(*queueItem)
 	if item1.task.ID != "T2" {
 		t.Errorf("First pop = %s, want T2 (priority 0)", item1.task.ID)
 	}
 
-	item2 := heap.Pop(pq).(*queueItem)
+	item2, _ := heap.Pop(pq).(*queueItem)
 	if item2.task.ID != "T3" {
 		t.Errorf("Second pop = %s, want T3 (priority 1)", item2.task.ID)
 	}
 
-	item3 := heap.Pop(pq).(*queueItem)
+	item3, _ := heap.Pop(pq).(*queueItem)
 	if item3.task.ID != "T1" {
 		t.Errorf("Third pop = %s, want T1 (priority 2)", item3.task.ID)
 	}
@@ -86,7 +86,7 @@ func TestPriorityQueue_PushPop(t *testing.T) {
 	}
 
 	// Test Pop
-	popped := pq.Pop().(*queueItem)
+	popped, _ := pq.Pop().(*queueItem)
 	if popped.task.ID != "T1" {
 		t.Errorf("Pop() = %s, want T1", popped.task.ID)
 	}
@@ -152,7 +152,7 @@ func TestPriorityQueue_HeapOperations(t *testing.T) {
 	// Should still maintain heap property
 	prev := -1
 	for pq.Len() > 0 {
-		item := heap.Pop(pq).(*queueItem)
+		item, _ := heap.Pop(pq).(*queueItem)
 		if item.priority < prev {
 			t.Errorf("Heap property violated: %d after %d", item.priority, prev)
 		}

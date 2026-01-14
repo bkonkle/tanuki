@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// StubManager is a minimal implementation of Manager that CLI commands can use.
+// StubManager is a minimal implementation of ManagerInterface that CLI commands can use.
 // This stub provides basic functionality using Docker commands directly.
 // It will be replaced by the full implementation from Workstream A.
 type StubManager struct {
@@ -88,7 +88,7 @@ func (m *StubManager) StopService(name string) error {
 		return nil // Not running
 	}
 
-	cmd := exec.Command("docker", "stop", containerName)
+	cmd := exec.Command("docker", "stop", containerName) //nolint:gosec // containerName is constructed from trusted config
 	return cmd.Run()
 }
 
@@ -112,7 +112,7 @@ func (m *StubManager) GetStatus(name string) (*Status, error) {
 	}
 
 	// Get container info
-	cmd := exec.Command("docker", "inspect", "--format",
+	cmd := exec.Command("docker", "inspect", "--format", //nolint:gosec // containerName is constructed from trusted config
 		"{{.Id}}|{{.State.Running}}|{{.State.Health.Status}}|{{.State.StartedAt}}",
 		containerName)
 	output, err := cmd.Output()
@@ -266,7 +266,7 @@ func (m *StubManager) createContainer(name string, cfg *Config) error {
 	// Add image
 	args = append(args, cfg.Image)
 
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec // args are constructed from trusted config
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker run failed: %s", strings.TrimSpace(string(output)))

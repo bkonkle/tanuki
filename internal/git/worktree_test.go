@@ -23,37 +23,43 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	cmd := exec.Command("git", "init")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("failed to init git repo: %v", err)
 	}
 
 	// Configure git user for commits
 	cmd = exec.Command("git", "config", "user.email", "test@example.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		_ = os.RemoveAll(tmpDir)
+		t.Fatalf("failed to configure git email: %v", err)
+	}
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		_ = os.RemoveAll(tmpDir)
+		t.Fatalf("failed to configure git username: %v", err)
+	}
 
 	// Create an initial commit (required for worktrees)
 	testFile := filepath.Join(tmpDir, "README.md")
-	if err := os.WriteFile(testFile, []byte("# Test\n"), 0644); err != nil {
-		os.RemoveAll(tmpDir)
+	if err := os.WriteFile(testFile, []byte("# Test\n"), 0600); err != nil {
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
 	cmd = exec.Command("git", "add", ".")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("failed to git add: %v", err)
 	}
 
 	cmd = exec.Command("git", "commit", "-m", "Initial commit")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("failed to git commit: %v", err)
 	}
 
@@ -61,9 +67,9 @@ func setupTestRepo(t *testing.T) (string, func()) {
 		// Clean up any worktrees first
 		cmd := exec.Command("git", "worktree", "list", "--porcelain")
 		cmd.Dir = tmpDir
-		cmd.Run()
+		_ = cmd.Run()
 
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	return tmpDir, cleanup
@@ -89,10 +95,10 @@ func TestNewManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get current dir: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
-	if err := os.Chdir(repoPath); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
+	if chErr := os.Chdir(repoPath); chErr != nil {
+		t.Fatalf("failed to chdir: %v", chErr)
 	}
 
 	cfg := config.DefaultConfig()
@@ -123,16 +129,16 @@ func TestNewManager_NotGitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get current dir: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
+	if chErr := os.Chdir(tmpDir); chErr != nil {
+		t.Fatalf("failed to chdir: %v", chErr)
 	}
 
 	cfg := config.DefaultConfig()
@@ -177,7 +183,7 @@ func TestCreateWorktree_BranchExists(t *testing.T) {
 
 	// Create a branch with the same name
 	branchName := manager.branchPrefix + "test-agent"
-	cmd := exec.Command("git", "branch", branchName)
+	cmd := exec.Command("git", "branch", branchName) //nolint:gosec // G204: branchName is test data derived from known prefix
 	cmd.Dir = repoPath
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to create branch: %v", err)
@@ -197,7 +203,7 @@ func TestCreateWorktree_WorktreeExists(t *testing.T) {
 
 	// Create the worktree directory
 	worktreeDir := filepath.Join(repoPath, ".tanuki", "worktrees", "test-agent")
-	if err := os.MkdirAll(worktreeDir, 0755); err != nil {
+	if err := os.MkdirAll(worktreeDir, 0750); err != nil {
 		t.Fatalf("failed to create worktree dir: %v", err)
 	}
 
@@ -279,8 +285,8 @@ func TestGetStatus(t *testing.T) {
 
 	// Create an untracked file in the worktree
 	testFile := filepath.Join(worktreePath, "new-file.txt")
-	if err := os.WriteFile(testFile, []byte("test content\n"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
+	if writeErr := os.WriteFile(testFile, []byte("test content\n"), 0600); writeErr != nil {
+		t.Fatalf("failed to create test file: %v", writeErr)
 	}
 
 	status, err := manager.GetStatus("test-agent")
@@ -334,20 +340,20 @@ func TestGetDiff(t *testing.T) {
 
 	// Make a change and commit it in the worktree
 	testFile := filepath.Join(worktreePath, "new-file.txt")
-	if err := os.WriteFile(testFile, []byte("test content\n"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
+	if writeErr := os.WriteFile(testFile, []byte("test content\n"), 0600); writeErr != nil {
+		t.Fatalf("failed to create test file: %v", writeErr)
 	}
 
 	cmd := exec.Command("git", "add", ".")
 	cmd.Dir = worktreePath
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
+	if addErr := cmd.Run(); addErr != nil {
+		t.Fatalf("failed to git add: %v", addErr)
 	}
 
 	cmd = exec.Command("git", "commit", "-m", "Add new file")
 	cmd.Dir = worktreePath
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
+	if commitErr := cmd.Run(); commitErr != nil {
+		t.Fatalf("failed to git commit: %v", commitErr)
 	}
 
 	// Get the current branch name to use as base

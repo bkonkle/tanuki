@@ -10,7 +10,7 @@ import (
 
 // Runner executes tasks on agents, supporting Ralph-style iteration.
 type Runner struct {
-	taskMgr    TaskManagerInterface
+	taskMgr    ManagerInterface
 	agentMgr   AgentExecutor
 	completion *CompletionHandler
 	cooldown   time.Duration
@@ -27,7 +27,7 @@ type RunnerOptions struct {
 }
 
 // NewRunner creates a new task runner.
-func NewRunner(taskMgr TaskManagerInterface, agentMgr AgentExecutor, completion *CompletionHandler) *Runner {
+func NewRunner(taskMgr ManagerInterface, agentMgr AgentExecutor, completion *CompletionHandler) *Runner {
 	return &Runner{
 		taskMgr:    taskMgr,
 		agentMgr:   agentMgr,
@@ -44,8 +44,8 @@ func (r *Runner) RunTask(ctx context.Context, taskID, agentName string) error {
 	}
 
 	// Update status to in_progress
-	if err := r.taskMgr.UpdateStatus(taskID, StatusInProgress); err != nil {
-		return fmt.Errorf("update status: %w", err)
+	if statusErr := r.taskMgr.UpdateStatus(taskID, StatusInProgress); statusErr != nil {
+		return fmt.Errorf("update status: %w", statusErr)
 	}
 	now := time.Now()
 	t.StartedAt = &now

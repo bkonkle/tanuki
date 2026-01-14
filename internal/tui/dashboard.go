@@ -383,12 +383,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.keys.Follow):
-			if m.activePane == PaneLogs {
+			switch m.activePane {
+			case PaneLogs:
 				m.logFollow = !m.logFollow
 				if m.logFollow {
 					m.scrollLogsToBottom()
 				}
-			} else if m.activePane == PaneTasks {
+			case PaneTasks:
 				m.cycleStatusFilter()
 			}
 			return m, nil
@@ -1054,20 +1055,4 @@ func (m Model) GetAgentCursor() int {
 // GetTaskCursor returns the current task cursor position.
 func (m Model) GetTaskCursor() int {
 	return m.taskCursor
-}
-
-// Helper for max.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// Helper for min.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

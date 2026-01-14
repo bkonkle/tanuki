@@ -56,7 +56,7 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	taskDir := getTasksDir(projectRoot)
 
 	// Check if task directory exists
-	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
 		fmt.Println("No tasks found. Run: tanuki project init")
 		return nil
 	}

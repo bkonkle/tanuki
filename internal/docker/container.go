@@ -141,7 +141,7 @@ func (m *Manager) CreateContainer(config ContainerConfig) (string, error) {
 	// Image and command - run sleep infinity to keep container alive
 	args = append(args, config.Image, "sleep", "infinity")
 
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec // G204: docker args are constructed from trusted config
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -176,7 +176,7 @@ func (m *Manager) CreateAgentContainerWithOptions(name string, worktreePath stri
 	}
 
 	// Verify worktree exists
-	if _, err := os.Stat(absWorktree); os.IsNotExist(err) {
+	if _, statErr := os.Stat(absWorktree); os.IsNotExist(statErr) {
 		return "", fmt.Errorf("worktree does not exist: %s", absWorktree)
 	}
 
@@ -295,10 +295,11 @@ func (m *Manager) Exec(containerID string, command []string, opts ExecOptions) e
 
 // ExecWithOutput executes a command in a container and returns the output.
 func (m *Manager) ExecWithOutput(containerID string, command []string) (string, error) {
-	args := []string{"exec", containerID}
+	args := make([]string, 0, 2+len(command))
+	args = append(args, "exec", containerID)
 	args = append(args, command...)
 
-	cmd := exec.Command("docker", args...)
+	cmd := exec.Command("docker", args...) //nolint:gosec // G204: docker args are constructed from trusted caller
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -360,11 +361,24 @@ func (lr *logReader) Read(p []byte) (n int, err error) {
 }
 
 func (lr *logReader) Close() error {
-	lr.stdout.Close()
-	lr.stderr.Close()
+	var errs []error
+	if err := lr.stdout.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := lr.stderr.Close(); err != nil {
+		errs = append(errs, err)
+	}
 	// Kill the process if it's still running
 	if lr.cmd.Process != nil {
-		lr.cmd.Process.Kill()
+		if err := lr.cmd.Process.Kill(); err != nil {
+			// Ignore "process already finished" errors
+			if !strings.Contains(err.Error(), "process already finished") {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return errs[0]
 	}
 	return nil
 }

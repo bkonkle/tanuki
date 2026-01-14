@@ -39,7 +39,7 @@ func init() {
 	rootCmd.AddCommand(diffCmd)
 }
 
-func runDiff(cmd *cobra.Command, args []string) error {
+func runDiff(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 
 	// Load config

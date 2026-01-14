@@ -44,7 +44,7 @@ func init() {
 	rootCmd.AddCommand(logsCmd)
 }
 
-func runLogs(cmd *cobra.Command, args []string) error {
+func runLogs(_ *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -153,7 +153,7 @@ func showAllLogs(agentMgr *agent.Manager, follow bool, tail int) error {
 }
 
 func streamLogsWithPrefix(ag *agent.Agent, prefix string) {
-	cmd := exec.Command("docker", "logs", "-f", ag.ContainerID)
+	cmd := exec.Command("docker", "logs", "-f", ag.ContainerID) //nolint:gosec // G204: Container ID is from internal state, not user input
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] Error: %v\n", prefix, err)

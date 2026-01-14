@@ -33,7 +33,7 @@ func init() {
 	projectCmd.AddCommand(projectStatusCmd)
 }
 
-func runProjectStatus(cmd *cobra.Command, args []string) error {
+func runProjectStatus(_ *cobra.Command, args []string) error {
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)
@@ -41,7 +41,7 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 
 	// Check if task directory exists
 	taskDir := getTasksDir(projectRoot)
-	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
 		fmt.Println("No tasks found.")
 		fmt.Printf("Create tasks in %s/ or run: tanuki project init\n", taskDir)
 		return nil
@@ -115,11 +115,11 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if projectName == "" && len(taskMgr.GetProjects()) > 0 {
 		// Include project column when showing all
-		fmt.Fprintln(w, "PROJECT\tID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
-		fmt.Fprintln(w, "-------\t--\t-----\t----\t----------\t--------\t------\t--------")
+		_, _ = fmt.Fprintln(w, "PROJECT\tID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		_, _ = fmt.Fprintln(w, "-------\t--\t-----\t----\t----------\t--------\t------\t--------")
 	} else {
-		fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
-		fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
+		_, _ = fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		_, _ = fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
 	}
 
 	// Sort by priority, then status
@@ -141,7 +141,7 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 			if proj == "" {
 				proj = "(root)"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				truncate(proj, 15),
 				t.ID,
 				truncate(t.Title, 25),
@@ -152,7 +152,7 @@ func runProjectStatus(cmd *cobra.Command, args []string) error {
 				assigned,
 			)
 		} else {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				t.ID,
 				truncate(t.Title, 30),
 				t.Role,
@@ -205,7 +205,7 @@ func collectWorkstreams(tasks []*task.Task) map[string]*workstreamInfo {
 	return workstreams
 }
 
-func printWorkstreamSummary(workstreams map[string]*workstreamInfo, tasks []*task.Task) {
+func printWorkstreamSummary(workstreams map[string]*workstreamInfo, _ []*task.Task) {
 	if len(workstreams) == 0 {
 		return
 	}
@@ -213,7 +213,7 @@ func printWorkstreamSummary(workstreams map[string]*workstreamInfo, tasks []*tas
 	fmt.Println("Workstreams:")
 
 	// Sort by role, then name
-	var wsList []*workstreamInfo
+	wsList := make([]*workstreamInfo, 0, len(workstreams))
 	for _, ws := range workstreams {
 		wsList = append(wsList, ws)
 	}
@@ -225,11 +225,11 @@ func printWorkstreamSummary(workstreams map[string]*workstreamInfo, tasks []*tas
 	})
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  WORKSTREAM\tROLE\tTOTAL\tCOMPLETE\tIN PROGRESS\tPENDING")
-	fmt.Fprintln(w, "  ----------\t----\t-----\t--------\t-----------\t-------")
+	_, _ = fmt.Fprintln(w, "  WORKSTREAM\tROLE\tTOTAL\tCOMPLETE\tIN PROGRESS\tPENDING")
+	_, _ = fmt.Fprintln(w, "  ----------\t----\t-----\t--------\t-----------\t-------")
 
 	for _, ws := range wsList {
-		fmt.Fprintf(w, "  %s\t%s\t%d\t%d\t%d\t%d\n",
+		_, _ = fmt.Fprintf(w, "  %s\t%s\t%d\t%d\t%d\t%d\n",
 			truncate(ws.Name, 20),
 			ws.Role,
 			ws.Total,
@@ -239,7 +239,7 @@ func printWorkstreamSummary(workstreams map[string]*workstreamInfo, tasks []*tas
 		)
 	}
 
-	w.Flush()
+	_ = w.Flush()
 	fmt.Println()
 }
 
@@ -314,7 +314,7 @@ func (m *mockTaskManager) Scan() ([]*task.Task, error) {
 		return nil, fmt.Errorf("read tasks directory: %w", err)
 	}
 
-	var tasks []*task.Task
+	tasks := make([]*task.Task, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".md" {
 			continue

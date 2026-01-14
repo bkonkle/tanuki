@@ -26,7 +26,7 @@ func (m *mockTaskManager) addTask(t *task.Task) {
 }
 
 func (m *mockTaskManager) Scan() ([]*task.Task, error) {
-	var tasks []*task.Task
+	tasks := make([]*task.Task, 0, len(m.tasks))
 	for _, t := range m.tasks {
 		tasks = append(tasks, t)
 	}
@@ -93,7 +93,7 @@ func (m *mockTaskManager) Unassign(id string) error {
 	return nil
 }
 
-func (m *mockTaskManager) IsBlocked(id string) (bool, error) {
+func (m *mockTaskManager) IsBlocked(_ string) (bool, error) {
 	return false, nil
 }
 
@@ -145,7 +145,7 @@ func (m *mockAgentManager) Get(name string) (*agent.Agent, error) {
 }
 
 func (m *mockAgentManager) List() ([]*agent.Agent, error) {
-	var agents []*agent.Agent
+	agents := make([]*agent.Agent, 0, len(m.agents))
 	for _, ag := range m.agents {
 		agents = append(agents, ag)
 	}
@@ -170,12 +170,12 @@ func (m *mockAgentManager) Stop(name string) error {
 	return nil
 }
 
-func (m *mockAgentManager) Remove(name string, opts agent.RemoveOptions) error {
+func (m *mockAgentManager) Remove(name string, _ agent.RemoveOptions) error {
 	delete(m.agents, name)
 	return nil
 }
 
-func (m *mockAgentManager) Run(name string, prompt string, opts agent.RunOptions) error {
+func (m *mockAgentManager) Run(_ string, _ string, _ agent.RunOptions) error {
 	return nil
 }
 
@@ -337,7 +337,7 @@ func TestOrchestrator_Status(t *testing.T) {
 	orch.status = StatusRunning
 	orch.started = time.Now().Add(-5 * time.Minute)
 
-	status := orch.Status()
+	status := orch.GetStatus()
 
 	if status.Status != StatusRunning {
 		t.Errorf("Status = %v, want running", status.Status)

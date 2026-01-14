@@ -242,7 +242,7 @@ func (m *FileStateManager) Save(state *State) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(m.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create state directory: %w", err)
 	}
 
@@ -253,7 +253,7 @@ func (m *FileStateManager) Save(state *State) error {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
@@ -406,7 +406,7 @@ func (m *FileStateManager) loadFromDisk() (*State, error) {
 func (m *FileStateManager) saveToDisk() error {
 	// Ensure directory exists
 	dir := filepath.Dir(m.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create state directory: %w", err)
 	}
 
@@ -417,7 +417,7 @@ func (m *FileStateManager) saveToDisk() error {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 

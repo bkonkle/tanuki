@@ -57,8 +57,8 @@ func TestStatusTracker_Listener(t *testing.T) {
 		received = append(received, change)
 	})
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
 
 	if len(received) != 2 {
 		t.Errorf("Listener received %d changes, want 2", len(received))
@@ -69,7 +69,7 @@ func TestStatusTracker_ListenerPanicRecovery(t *testing.T) {
 	tracker := NewStatusTracker()
 
 	// Add a listener that panics
-	tracker.AddListener(func(change StatusChange) {
+	tracker.AddListener(func(_ StatusChange) {
 		panic("test panic")
 	})
 
@@ -83,9 +83,9 @@ func TestStatusTracker_ListenerPanicRecovery(t *testing.T) {
 func TestStatusTracker_GetHistory(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
-	tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "done")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "done")
 
 	history := tracker.GetHistory("T1")
 	if len(history) != 3 {
@@ -113,8 +113,8 @@ func TestStatusTracker_GetHistoryEmpty(t *testing.T) {
 func TestStatusTracker_GetLastChange(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
 
 	last := tracker.GetLastChange("T1")
 	if last == nil {
@@ -213,9 +213,9 @@ func TestStatusTracker_GetTasksByStatus(t *testing.T) {
 func TestStatusTracker_GetRecentChanges(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
 	time.Sleep(10 * time.Millisecond)
-	tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
+	_ = tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
 
 	recent := tracker.GetRecentChanges(1 * time.Hour)
 	if len(recent) != 2 {
@@ -233,8 +233,8 @@ func TestStatusTracker_GetCompletedToday(t *testing.T) {
 	tracker := NewStatusTracker()
 
 	// Record a completion
-	tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
-	tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
+	_ = tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
+	_ = tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
 
 	completed := tracker.GetCompletedToday()
 	if len(completed) != 1 {
@@ -250,13 +250,13 @@ func TestStatusTracker_GetTaskDuration(t *testing.T) {
 	tracker := NewStatusTracker()
 
 	// Simulate task lifecycle
-	tracker.RecordChange("T1", "", StatusPending, "", "")
+	_ = tracker.RecordChange("T1", "", StatusPending, "", "")
 	time.Sleep(10 * time.Millisecond)
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
 	time.Sleep(10 * time.Millisecond)
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
 	time.Sleep(50 * time.Millisecond)
-	tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
 
 	durations := tracker.GetTaskDuration("T1")
 
@@ -269,9 +269,9 @@ func TestStatusTracker_GetTaskDuration(t *testing.T) {
 func TestStatusTracker_GetTotalWorkTime(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
 	time.Sleep(30 * time.Millisecond)
-	tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
 
 	workTime := tracker.GetTotalWorkTime("T1")
 	if workTime < 25*time.Millisecond {
@@ -283,16 +283,16 @@ func TestStatusTracker_GetAverageCompletionTime(t *testing.T) {
 	tracker := NewStatusTracker()
 
 	// Task 1: 50ms
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
 	time.Sleep(50 * time.Millisecond)
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
-	tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusInProgress, StatusComplete, "agent-1", "")
 
 	// Task 2: 50ms
-	tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
+	_ = tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
 	time.Sleep(50 * time.Millisecond)
-	tracker.RecordChange("T2", StatusAssigned, StatusInProgress, "agent-2", "")
-	tracker.RecordChange("T2", StatusInProgress, StatusComplete, "agent-2", "")
+	_ = tracker.RecordChange("T2", StatusAssigned, StatusInProgress, "agent-2", "")
+	_ = tracker.RecordChange("T2", StatusInProgress, StatusComplete, "agent-2", "")
 
 	avg := tracker.GetAverageCompletionTime()
 	if avg < 40*time.Millisecond || avg > 150*time.Millisecond {
@@ -304,7 +304,7 @@ func TestStatusTracker_GetAverageCompletionTimeNoCompletions(t *testing.T) {
 	tracker := NewStatusTracker()
 
 	// No completions
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
 
 	avg := tracker.GetAverageCompletionTime()
 	if avg != 0 {
@@ -312,7 +312,7 @@ func TestStatusTracker_GetAverageCompletionTimeNoCompletions(t *testing.T) {
 	}
 }
 
-func TestStatusTracker_ConcurrentAccess(t *testing.T) {
+func TestStatusTracker_ConcurrentAccess(_ *testing.T) {
 	tracker := NewStatusTracker()
 
 	var wg sync.WaitGroup
@@ -322,8 +322,8 @@ func TestStatusTracker_ConcurrentAccess(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			taskID := fmt.Sprintf("T%d", id)
-			tracker.RecordChange(taskID, StatusPending, StatusAssigned, "agent", "")
-			tracker.RecordChange(taskID, StatusAssigned, StatusInProgress, "agent", "")
+			_ = tracker.RecordChange(taskID, StatusPending, StatusAssigned, "agent", "")
+			_ = tracker.RecordChange(taskID, StatusAssigned, StatusInProgress, "agent", "")
 		}(i)
 
 		go func(id int) {
@@ -341,8 +341,8 @@ func TestStatusTracker_ConcurrentAccess(t *testing.T) {
 func TestStatusTracker_Clear(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
-	tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
 
 	tracker.Clear()
 
@@ -354,9 +354,9 @@ func TestStatusTracker_Clear(t *testing.T) {
 func TestStatusTracker_TaskCount(t *testing.T) {
 	tracker := NewStatusTracker()
 
-	tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
-	tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
-	tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "") // Same task
+	_ = tracker.RecordChange("T1", StatusPending, StatusAssigned, "agent-1", "")
+	_ = tracker.RecordChange("T2", StatusPending, StatusAssigned, "agent-2", "")
+	_ = tracker.RecordChange("T1", StatusAssigned, StatusInProgress, "agent-1", "") // Same task
 
 	if tracker.TaskCount() != 2 {
 		t.Errorf("TaskCount() = %d, want 2", tracker.TaskCount())

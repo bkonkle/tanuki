@@ -144,10 +144,11 @@ func (m *HealthMonitor) runHealthcheck(container string, hc *HealthcheckConfig) 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	args := []string{"exec", container}
+	args := make([]string, 0, 2+len(hc.Command))
+	args = append(args, "exec", container)
 	args = append(args, hc.Command...)
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(ctx, "docker", args...) //nolint:gosec // args are constructed from trusted config
 	err := cmd.Run()
 	return err == nil, err
 }

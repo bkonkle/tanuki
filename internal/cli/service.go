@@ -127,7 +127,7 @@ func getServiceManager() (*service.StubManager, error) {
 	// Enable services that have running containers
 	for name := range services {
 		containerName := service.ContainerName(name)
-		cmd := exec.Command("docker", "container", "inspect", containerName)
+		cmd := exec.Command("docker", "container", "inspect", containerName) //nolint:gosec // G204: Container name is from internal config
 		if cmd.Run() == nil {
 			services[name].Enabled = true
 		}
@@ -136,7 +136,7 @@ func getServiceManager() (*service.StubManager, error) {
 	return service.NewStubManager(services, "tanuki-net"), nil
 }
 
-func runServiceStart(cmd *cobra.Command, args []string) error {
+func runServiceStart(_ *cobra.Command, args []string) error {
 	svcMgr, err := getServiceManager()
 	if err != nil {
 		return err
@@ -151,8 +151,8 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 			svcMgr.Services[name].Enabled = true
 		}
 
-		if err := svcMgr.StartServices(); err != nil {
-			return err
+		if startErr := svcMgr.StartServices(); startErr != nil {
+			return startErr
 		}
 
 		// Print status
@@ -187,7 +187,7 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runServiceStop(cmd *cobra.Command, args []string) error {
+func runServiceStop(_ *cobra.Command, args []string) error {
 	svcMgr, err := getServiceManager()
 	if err != nil {
 		return err
@@ -211,7 +211,7 @@ func runServiceStop(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runServiceStatus(cmd *cobra.Command, args []string) error {
+func runServiceStatus(_ *cobra.Command, _ []string) error {
 	svcMgr, err := getServiceManager()
 	if err != nil {
 		return err
@@ -260,7 +260,7 @@ func runServiceStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runServiceLogs(cmd *cobra.Command, args []string) error {
+func runServiceLogs(_ *cobra.Command, args []string) error {
 	name := args[0]
 	containerName := service.ContainerName(name)
 
@@ -277,7 +277,7 @@ func runServiceLogs(cmd *cobra.Command, args []string) error {
 	return dockerCmd.Run()
 }
 
-func runServiceConnect(cmd *cobra.Command, args []string) error {
+func runServiceConnect(_ *cobra.Command, args []string) error {
 	name := args[0]
 
 	svcMgr, err := getServiceManager()
@@ -312,14 +312,14 @@ func runServiceConnect(cmd *cobra.Command, args []string) error {
 		if db == "" {
 			db = "postgres"
 		}
-		connectCmd = exec.Command("docker", "exec", "-it", containerName,
+		connectCmd = exec.Command("docker", "exec", "-it", containerName, //nolint:gosec // G204: Arguments are from internal service config
 			"psql", "-U", user, "-d", db)
 	case "redis":
-		connectCmd = exec.Command("docker", "exec", "-it", containerName,
+		connectCmd = exec.Command("docker", "exec", "-it", containerName, //nolint:gosec // G204: Container name is from internal config
 			"redis-cli")
 	default:
 		// Generic shell
-		connectCmd = exec.Command("docker", "exec", "-it", containerName, "sh")
+		connectCmd = exec.Command("docker", "exec", "-it", containerName, "sh") //nolint:gosec // G204: Container name is from internal config
 	}
 
 	connectCmd.Stdin = os.Stdin

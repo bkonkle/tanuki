@@ -10,7 +10,7 @@ import (
 
 // ParseFile reads and parses a task file from disk.
 func ParseFile(path string) (*Task, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 - path is from internal iteration over known task directories
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}

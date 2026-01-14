@@ -291,21 +291,21 @@ func TestBalancer_StatsEmpty(t *testing.T) {
 	}
 }
 
-func TestBalancer_ConcurrentAccess(t *testing.T) {
+func TestBalancer_ConcurrentAccess(_ *testing.T) {
 	b := NewBalancer()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(2)
 
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				b.TrackAssignment("agent-1")
 			}
 		}(i)
 
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				b.TrackCompletion("agent-1")

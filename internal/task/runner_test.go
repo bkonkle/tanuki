@@ -20,7 +20,7 @@ func newMockAgentExecutor(outputs []string, errors []error) *mockAgentExecutor {
 	}
 }
 
-func (m *mockAgentExecutor) Run(name, prompt string) (string, error) {
+func (m *mockAgentExecutor) Run(_, _ string) (string, error) {
 	idx := m.calls
 	m.calls++
 

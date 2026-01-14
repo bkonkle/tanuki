@@ -130,7 +130,7 @@ func (s Status) IsTerminal() bool {
 	return s == StatusComplete
 }
 
-// PriorityOrder returns the sort order for a priority (lower = higher priority).
+// Order returns the sort order for a priority (lower = higher priority).
 func (p Priority) Order() int {
 	switch p {
 	case PriorityCritical:

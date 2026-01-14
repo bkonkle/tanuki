@@ -87,7 +87,7 @@ func TestFileManager_List_WithProjectRoles(t *testing.T) {
 	rolesDir := filepath.Join(projectRoot, ".tanuki", "roles")
 
 	// Create roles directory
-	if err := os.MkdirAll(rolesDir, 0755); err != nil {
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatalf("Failed to create roles directory: %v", err)
 	}
 
@@ -105,8 +105,8 @@ func TestFileManager_List_WithProjectRoles(t *testing.T) {
 	}
 
 	rolePath := filepath.Join(rolesDir, "custom.yaml")
-	if err := os.WriteFile(rolePath, data, 0644); err != nil {
-		t.Fatalf("Failed to write custom role: %v", err)
+	if writeErr := os.WriteFile(rolePath, data, 0600); writeErr != nil {
+		t.Fatalf("Failed to write custom role: %v", writeErr)
 	}
 
 	// Create manager and list roles
@@ -172,7 +172,7 @@ func TestFileManager_Get_ProjectOverridesBuiltin(t *testing.T) {
 	rolesDir := filepath.Join(projectRoot, ".tanuki", "roles")
 
 	// Create roles directory
-	if err := os.MkdirAll(rolesDir, 0755); err != nil {
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatalf("Failed to create roles directory: %v", err)
 	}
 
@@ -190,8 +190,8 @@ func TestFileManager_Get_ProjectOverridesBuiltin(t *testing.T) {
 	}
 
 	rolePath := filepath.Join(rolesDir, "backend.yaml")
-	if err := os.WriteFile(rolePath, data, 0644); err != nil {
-		t.Fatalf("Failed to write custom role: %v", err)
+	if writeErr := os.WriteFile(rolePath, data, 0600); writeErr != nil {
+		t.Fatalf("Failed to write custom role: %v", writeErr)
 	}
 
 	// Get the backend role
@@ -233,8 +233,8 @@ func TestFileManager_LoadFromFile(t *testing.T) {
 	}
 
 	rolePath := filepath.Join(tmpDir, "test.yaml")
-	if err := os.WriteFile(rolePath, data, 0644); err != nil {
-		t.Fatalf("Failed to write role file: %v", err)
+	if writeErr := os.WriteFile(rolePath, data, 0600); writeErr != nil {
+		t.Fatalf("Failed to write role file: %v", writeErr)
 	}
 
 	// Load the role
@@ -260,11 +260,11 @@ func TestFileManager_LoadFromFile_WithSystemPromptFile(t *testing.T) {
 	// Create a system prompt file
 	promptContent := "This is a custom system prompt from a file."
 	promptPath := filepath.Join(projectRoot, "prompts", "custom.md")
-	if err := os.MkdirAll(filepath.Dir(promptPath), 0755); err != nil {
-		t.Fatalf("Failed to create prompts directory: %v", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(promptPath), 0750); mkdirErr != nil {
+		t.Fatalf("Failed to create prompts directory: %v", mkdirErr)
 	}
-	if err := os.WriteFile(promptPath, []byte(promptContent), 0644); err != nil {
-		t.Fatalf("Failed to write prompt file: %v", err)
+	if writeErr := os.WriteFile(promptPath, []byte(promptContent), 0600); writeErr != nil {
+		t.Fatalf("Failed to write prompt file: %v", writeErr)
 	}
 
 	// Create a role file with system_prompt_file
@@ -281,8 +281,8 @@ func TestFileManager_LoadFromFile_WithSystemPromptFile(t *testing.T) {
 	}
 
 	rolePath := filepath.Join(tmpDir, "test.yaml")
-	if err := os.WriteFile(rolePath, data, 0644); err != nil {
-		t.Fatalf("Failed to write role file: %v", err)
+	if roleWriteErr := os.WriteFile(rolePath, data, 0600); roleWriteErr != nil {
+		t.Fatalf("Failed to write role file: %v", roleWriteErr)
 	}
 
 	// Load the role
@@ -314,8 +314,8 @@ func TestFileManager_LoadFromFile_Invalid(t *testing.T) {
 	}
 
 	rolePath := filepath.Join(tmpDir, "invalid.yaml")
-	if err := os.WriteFile(rolePath, data, 0644); err != nil {
-		t.Fatalf("Failed to write role file: %v", err)
+	if writeErr := os.WriteFile(rolePath, data, 0600); writeErr != nil {
+		t.Fatalf("Failed to write role file: %v", writeErr)
 	}
 
 	// Load should fail validation
@@ -368,28 +368,28 @@ func TestFileManager_InitRoles_DoesNotOverwrite(t *testing.T) {
 	rolesDir := filepath.Join(projectRoot, ".tanuki", "roles")
 
 	// Create roles directory
-	if err := os.MkdirAll(rolesDir, 0755); err != nil {
-		t.Fatalf("Failed to create roles directory: %v", err)
+	if mkdirErr := os.MkdirAll(rolesDir, 0750); mkdirErr != nil {
+		t.Fatalf("Failed to create roles directory: %v", mkdirErr)
 	}
 
 	// Create a custom backend role
 	customContent := []byte("name: backend\ndescription: Custom\nsystem_prompt: Custom prompt\n")
 	backendPath := filepath.Join(rolesDir, "backend.yaml")
-	if err := os.WriteFile(backendPath, customContent, 0644); err != nil {
-		t.Fatalf("Failed to write custom backend role: %v", err)
+	if writeErr := os.WriteFile(backendPath, customContent, 0600); writeErr != nil {
+		t.Fatalf("Failed to write custom backend role: %v", writeErr)
 	}
 
 	m := NewManager(projectRoot)
 
 	// Initialize roles
-	if err := m.InitRoles(); err != nil {
-		t.Fatalf("InitRoles() error: %v", err)
+	if initErr := m.InitRoles(); initErr != nil {
+		t.Fatalf("InitRoles() error: %v", initErr)
 	}
 
 	// Read the backend role file
-	content, err := os.ReadFile(backendPath)
-	if err != nil {
-		t.Fatalf("Failed to read backend role file: %v", err)
+	content, readErr := os.ReadFile(backendPath) //nolint:gosec // G304: Test file path is controlled
+	if readErr != nil {
+		t.Fatalf("Failed to read backend role file: %v", readErr)
 	}
 
 	// Should still have custom content

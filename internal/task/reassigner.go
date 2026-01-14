@@ -8,7 +8,7 @@ import (
 
 // Reassigner automatically assigns tasks to idle agents.
 type Reassigner struct {
-	taskMgr  TaskManagerInterface
+	taskMgr  ManagerInterface
 	queue    QueueInterface
 	agentMgr AgentLister
 	runner   *Runner
@@ -39,7 +39,7 @@ type DependencyChecker interface {
 }
 
 // NewReassigner creates a new auto-reassigner.
-func NewReassigner(taskMgr TaskManagerInterface, queue QueueInterface, agentMgr AgentLister, runner *Runner) *Reassigner {
+func NewReassigner(taskMgr ManagerInterface, queue QueueInterface, agentMgr AgentLister, runner *Runner) *Reassigner {
 	return &Reassigner{
 		taskMgr:  taskMgr,
 		queue:    queue,
@@ -98,7 +98,7 @@ func (r *Reassigner) checkAndReassign(ctx context.Context) {
 
 // OnTaskComplete handles task completion events.
 // Called when a task completes to immediately assign the next task.
-func (r *Reassigner) OnTaskComplete(ctx context.Context, taskID, agentName, agentRole string) {
+func (r *Reassigner) OnTaskComplete(ctx context.Context, _, agentName, agentRole string) {
 	// Immediately try to assign next task
 	t, err := r.queue.Dequeue(agentRole)
 	if err != nil {

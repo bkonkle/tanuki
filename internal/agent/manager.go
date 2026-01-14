@@ -42,8 +42,8 @@ type Agent = state.Agent
 // TaskInfo is an alias for state.TaskInfo for convenience.
 type TaskInfo = state.TaskInfo
 
-// AgentStatus provides detailed status information about an agent.
-type AgentStatus struct {
+// Status provides detailed status information about an agent.
+type Status struct {
 	Name      string
 	Status    string
 	Branch    string
@@ -273,25 +273,25 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		// Copy context files if specified
 		if len(roleInfo.ContextFiles) > 0 {
 			// Get project root from current working directory
-			projectRoot, err := os.Getwd()
-			if err != nil {
+			projectRoot, cwdErr := os.Getwd()
+			if cwdErr != nil {
 				_ = m.git.RemoveWorktree(name, true) // Rollback
-				return nil, fmt.Errorf("failed to get project root: %w", err)
+				return nil, fmt.Errorf("failed to get project root: %w", cwdErr)
 			}
 			contextMgr := context.NewManager(projectRoot, false)
-			result, err := contextMgr.CopyContextFiles(worktreePath, roleInfo.ContextFiles)
-			if err != nil {
+			result, copyErr := contextMgr.CopyContextFiles(worktreePath, roleInfo.ContextFiles)
+			if copyErr != nil {
 				_ = m.git.RemoveWorktree(name, true) // Rollback
-				return nil, fmt.Errorf("failed to copy context files: %w", err)
+				return nil, fmt.Errorf("failed to copy context files: %w", copyErr)
 			}
 			// Log warnings but don't fail for missing context files
 			_ = result // Result contains Copied, Skipped, and Errors for logging if needed
 		}
 
 		// Generate CLAUDE.md with role system prompt
-		if err := m.generateClaudeMD(worktreePath, roleInfo); err != nil {
+		if genErr := m.generateClaudeMD(worktreePath, roleInfo); genErr != nil {
 			_ = m.git.RemoveWorktree(name, true) // Rollback
-			return nil, fmt.Errorf("failed to generate CLAUDE.md: %w", err)
+			return nil, fmt.Errorf("failed to generate CLAUDE.md: %w", genErr)
 		}
 	}
 
@@ -435,13 +435,13 @@ func (m *Manager) List() ([]*Agent, error) {
 
 // Status returns detailed status information about an agent.
 // This aggregates information from the container, git worktree, and state.
-func (m *Manager) Status(name string) (*AgentStatus, error) {
+func (m *Manager) Status(name string) (*Status, error) {
 	agent, err := m.state.GetAgent(name)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %q", ErrAgentNotFound, name)
 	}
 
-	status := &AgentStatus{
+	status := &Status{
 		Name:     agent.Name,
 		Status:   string(agent.Status),
 		Branch:   agent.Branch,
@@ -462,7 +462,7 @@ func (m *Manager) Status(name string) (*AgentStatus, error) {
 
 		// Get resource usage if container is running
 		if isRunning {
-			if resourceUsage, err := m.docker.GetResourceUsage(agent.ContainerID); err == nil && resourceUsage != nil {
+			if resourceUsage, resErr := m.docker.GetResourceUsage(agent.ContainerID); resErr == nil && resourceUsage != nil {
 				status.Container.Memory = resourceUsage.Memory
 				status.Container.CPU = resourceUsage.CPU
 			}
@@ -663,5 +663,5 @@ func (m *Manager) generateClaudeMD(worktreePath string, roleInfo *RoleInfo) erro
 		}
 	}
 
-	return os.WriteFile(claudeMDPath, []byte(content.String()), 0644)
+	return os.WriteFile(claudeMDPath, []byte(content.String()), 0600)
 }

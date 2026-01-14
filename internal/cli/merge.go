@@ -50,7 +50,7 @@ func init() {
 	rootCmd.AddCommand(mergeCmd)
 }
 
-func runMerge(cmd *cobra.Command, args []string) error {
+func runMerge(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 
 	// Load config
@@ -136,7 +136,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 	return mergeBranch(ag, agentMgr, gitMgr)
 }
 
-func mergeBranch(ag *agent.Agent, agentMgr *agent.Manager, gitMgr *git.Manager) error {
+func mergeBranch(ag *agent.Agent, agentMgr *agent.Manager, _ *git.Manager) error {
 	mergeArgs := []string{"merge"}
 
 	if mergeSquash {
@@ -167,7 +167,7 @@ func mergeBranch(ag *agent.Agent, agentMgr *agent.Manager, gitMgr *git.Manager) 
 		if commitMsg == "" {
 			commitMsg = fmt.Sprintf("Merge work from agent %s", ag.Name)
 		}
-		commitCmd := exec.Command("git", "commit", "-m", commitMsg)
+		commitCmd := exec.Command("git", "commit", "-m", commitMsg) //nolint:gosec // G204: commitMsg is user-controlled for git commit
 		commitCmd.Stdout = os.Stdout
 		commitCmd.Stderr = os.Stderr
 		if err := commitCmd.Run(); err != nil {
@@ -198,7 +198,7 @@ func createPullRequest(ag *agent.Agent, gitMgr *git.Manager) error {
 
 	// Push branch to remote first
 	fmt.Println("Pushing branch to remote...")
-	pushCmd := exec.Command("git", "push", "-u", "origin", ag.Branch)
+	pushCmd := exec.Command("git", "push", "-u", "origin", ag.Branch) //nolint:gosec // G204: Branch name is from internal agent state
 	pushCmd.Stdout = os.Stdout
 	pushCmd.Stderr = os.Stderr
 	if err := pushCmd.Run(); err != nil {
@@ -217,7 +217,7 @@ func createPullRequest(ag *agent.Agent, gitMgr *git.Manager) error {
 	prTitle := fmt.Sprintf("[Tanuki] %s", ag.Name)
 	prBody := fmt.Sprintf("Work completed by Tanuki agent `%s`.\n\nCreated automatically by `tanuki merge --pr`.", ag.Name)
 
-	prCmd := exec.Command("gh", "pr", "create",
+	prCmd := exec.Command("gh", "pr", "create", //nolint:gosec // G204: PR arguments are from internal agent state
 		"--base", baseBranch,
 		"--head", ag.Branch,
 		"--title", prTitle,
@@ -236,7 +236,7 @@ func createPullRequest(ag *agent.Agent, gitMgr *git.Manager) error {
 
 // getDiffStat returns the diff stat between two branches
 func getDiffStat(branchName, baseBranch string) (string, error) {
-	cmd := exec.Command("git", "diff", "--stat", baseBranch+"..."+branchName)
+	cmd := exec.Command("git", "diff", "--stat", baseBranch+"..."+branchName) //nolint:gosec // G204: Branch names are from internal state
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err

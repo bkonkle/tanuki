@@ -59,7 +59,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func runRun(cmd *cobra.Command, args []string) error {
+func runRun(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 	prompt := args[1]
 
@@ -159,7 +159,7 @@ func runRalphMode(agentMgr *agent.Manager, agentName string, prompt string, opts
 		opts.Follow = true
 
 		execErr := agentMgr.Run(agentName, prompt, opts)
-		pw.Close()
+		_ = pw.Close()
 
 		// Wait for output reading to finish
 		<-doneChan
@@ -215,15 +215,15 @@ func runVerifyCommand(cmdStr string) error {
 		return fmt.Errorf("empty verify command")
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command(parts[0], parts[1:]...) //nolint:gosec // G204: Verify command is user-provided for task verification
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
 		return s
 	}
-	return s[:max-3] + "..."
+	return s[:maxLen-3] + "..."
 }

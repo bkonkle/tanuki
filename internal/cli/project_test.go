@@ -13,8 +13,8 @@ func TestProjectInit(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(tempDir)
 
 	// Run init
 	err := runProjectInit(nil, nil)
@@ -24,18 +24,18 @@ func TestProjectInit(t *testing.T) {
 
 	// Check task directory was created (defaults to "tasks")
 	taskDir := filepath.Join(tempDir, "tasks")
-	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
 		t.Error("task directory was not created")
 	}
 
 	// Check example task was created
 	examplePath := filepath.Join(taskDir, "TASK-001-example.md")
-	if _, err := os.Stat(examplePath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
 
 	// Verify example task can be parsed
-	content, err := os.ReadFile(examplePath)
+	content, err := os.ReadFile(examplePath) //nolint:gosec // G304: Test file path is from t.TempDir()
 	if err != nil {
 		t.Fatalf("read example task: %v", err)
 	}
@@ -52,17 +52,15 @@ func TestProjectInitIdempotent(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(tempDir)
 
 	// Run init twice
-	err := runProjectInit(nil, nil)
-	if err != nil {
+	if err := runProjectInit(nil, nil); err != nil {
 		t.Fatalf("first runProjectInit() error: %v", err)
 	}
 
-	err = runProjectInit(nil, nil)
-	if err != nil {
+	if err := runProjectInit(nil, nil); err != nil {
 		t.Fatalf("second runProjectInit() error: %v", err)
 	}
 
@@ -83,8 +81,8 @@ func TestProjectInitWithName(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(tempDir)
 
 	// Run init with a project name
 	err := runProjectInit(nil, []string{"auth-feature"})
@@ -94,30 +92,30 @@ func TestProjectInitWithName(t *testing.T) {
 
 	// Check tasks directory was created
 	taskDir := filepath.Join(tempDir, "tasks")
-	if _, err := os.Stat(taskDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(taskDir); os.IsNotExist(statErr) {
 		t.Error("tasks directory was not created")
 	}
 
 	// Check project folder was created
 	projectDir := filepath.Join(taskDir, "auth-feature")
-	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(projectDir); os.IsNotExist(statErr) {
 		t.Error("project folder was not created")
 	}
 
 	// Check project.md was created in project folder
 	projectMdPath := filepath.Join(projectDir, "project.md")
-	if _, err := os.Stat(projectMdPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(projectMdPath); os.IsNotExist(statErr) {
 		t.Error("project.md was not created")
 	}
 
 	// Check example task was created in project folder
 	examplePath := filepath.Join(projectDir, "001-example.md")
-	if _, err := os.Stat(examplePath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
 
 	// Verify example task can be parsed and has correct project ID prefix
-	content, err := os.ReadFile(examplePath)
+	content, err := os.ReadFile(examplePath) //nolint:gosec // G304: Test file path is from t.TempDir()
 	if err != nil {
 		t.Fatalf("read example task: %v", err)
 	}
@@ -134,17 +132,15 @@ func TestProjectInitWithNameIdempotent(t *testing.T) {
 	// Create temp directory
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	defer func() { _ = os.Chdir(oldWd) }()
+	_ = os.Chdir(tempDir)
 
 	// Run init with project name twice
-	err := runProjectInit(nil, []string{"my-project"})
-	if err != nil {
+	if err := runProjectInit(nil, []string{"my-project"}); err != nil {
 		t.Fatalf("first runProjectInit(my-project) error: %v", err)
 	}
 
-	err = runProjectInit(nil, []string{"my-project"})
-	if err != nil {
+	if err := runProjectInit(nil, []string{"my-project"}); err != nil {
 		t.Fatalf("second runProjectInit(my-project) error: %v", err)
 	}
 
@@ -165,7 +161,9 @@ func TestMockTaskManagerScan(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
-	os.MkdirAll(taskDir, 0755)
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
 
 	// Create test task
 	taskContent := `---
@@ -179,7 +177,9 @@ status: pending
 Test content
 `
 	taskPath := filepath.Join(taskDir, "TEST-001-test.md")
-	os.WriteFile(taskPath, []byte(taskContent), 0644)
+	if err := os.WriteFile(taskPath, []byte(taskContent), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Scan
 	mgr := newMockTaskManager(taskDir)
@@ -201,7 +201,9 @@ func TestMockTaskManagerGetByRole(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
-	os.MkdirAll(taskDir, 0755)
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
 
 	// Create backend task
 	backendTask := `---
@@ -213,7 +215,9 @@ status: pending
 
 Backend content
 `
-	os.WriteFile(filepath.Join(taskDir, "BE-001.md"), []byte(backendTask), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "BE-001.md"), []byte(backendTask), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Create frontend task
 	frontendTask := `---
@@ -225,11 +229,13 @@ status: pending
 
 Frontend content
 `
-	os.WriteFile(filepath.Join(taskDir, "FE-001.md"), []byte(frontendTask), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "FE-001.md"), []byte(frontendTask), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Scan and filter by role
 	mgr := newMockTaskManager(taskDir)
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	backendTasks := mgr.GetByRole("backend")
 	if len(backendTasks) != 1 {
@@ -251,7 +257,9 @@ func TestMockTaskManagerIsBlocked(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
-	os.MkdirAll(taskDir, 0755)
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
 
 	// Create T1 (complete)
 	t1 := `---
@@ -263,7 +271,9 @@ status: complete
 
 Done
 `
-	os.WriteFile(filepath.Join(taskDir, "T1.md"), []byte(t1), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "T1.md"), []byte(t1), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Create T2 (pending)
 	t2 := `---
@@ -275,7 +285,9 @@ status: pending
 
 Pending
 `
-	os.WriteFile(filepath.Join(taskDir, "T2.md"), []byte(t2), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "T2.md"), []byte(t2), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Create T3 (depends on T1 - not blocked)
 	t3 := `---
@@ -289,7 +301,9 @@ depends_on:
 
 Depends on T1
 `
-	os.WriteFile(filepath.Join(taskDir, "T3.md"), []byte(t3), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "T3.md"), []byte(t3), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Create T4 (depends on T2 - blocked)
 	t4 := `---
@@ -303,11 +317,13 @@ depends_on:
 
 Depends on T2
 `
-	os.WriteFile(filepath.Join(taskDir, "T4.md"), []byte(t4), 0644)
+	if err := os.WriteFile(filepath.Join(taskDir, "T4.md"), []byte(t4), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Scan
 	mgr := newMockTaskManager(taskDir)
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	// Test blocked status
 	tests := []struct {
@@ -337,7 +353,9 @@ func TestMockTaskManagerUpdateStatus(t *testing.T) {
 	// Create temp directory with task file
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
-	os.MkdirAll(taskDir, 0755)
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
 
 	taskContent := `---
 id: TEST-001
@@ -349,11 +367,13 @@ status: pending
 Test content
 `
 	taskPath := filepath.Join(taskDir, "TEST-001.md")
-	os.WriteFile(taskPath, []byte(taskContent), 0644)
+	if err := os.WriteFile(taskPath, []byte(taskContent), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Scan
 	mgr := newMockTaskManager(taskDir)
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	// Update status
 	err := mgr.UpdateStatus("TEST-001", task.StatusInProgress)
@@ -369,7 +389,7 @@ Test content
 
 	// Verify on disk (re-scan)
 	mgr2 := newMockTaskManager(taskDir)
-	mgr2.Scan()
+	_, _ = mgr2.Scan()
 	tsk2, _ := mgr2.Get("TEST-001")
 	if tsk2.Status != task.StatusInProgress {
 		t.Errorf("Persisted status = %v, want in_progress", tsk2.Status)
@@ -380,7 +400,9 @@ func TestMockTaskManagerAssign(t *testing.T) {
 	// Create temp directory with task file
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
-	os.MkdirAll(taskDir, 0755)
+	if err := os.MkdirAll(taskDir, 0750); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
 
 	taskContent := `---
 id: TEST-001
@@ -392,11 +414,13 @@ status: pending
 Test content
 `
 	taskPath := filepath.Join(taskDir, "TEST-001.md")
-	os.WriteFile(taskPath, []byte(taskContent), 0644)
+	if err := os.WriteFile(taskPath, []byte(taskContent), 0600); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
 
 	// Scan
 	mgr := newMockTaskManager(taskDir)
-	mgr.Scan()
+	_, _ = mgr.Scan()
 
 	// Assign
 	err := mgr.Assign("TEST-001", "backend-agent")

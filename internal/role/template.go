@@ -101,16 +101,20 @@ func indentFunc(s string, prefix string) string {
 func WriteRoleTemplate(path string, role *Role) error {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
 	// Create file
-	f, err := os.Create(path)
+	f, err := os.Create(path) //nolint:gosec // G304: File path is intentionally provided by caller
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close file: %w", cerr)
+		}
+	}()
 
 	// Execute template
 	tmpl := template.Must(template.New("role").Funcs(template.FuncMap{

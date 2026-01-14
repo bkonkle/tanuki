@@ -52,12 +52,14 @@ func WriteFile(t *Task) error {
 	if err := encoder.Encode(fm); err != nil {
 		return fmt.Errorf("marshal front matter: %w", err)
 	}
-	encoder.Close()
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("close encoder: %w", err)
+	}
 
 	// Combine with markdown content
 	content := fmt.Sprintf("---\n%s---\n\n%s\n", buf.String(), t.Content)
 
-	return os.WriteFile(t.FilePath, []byte(content), 0644)
+	return os.WriteFile(t.FilePath, []byte(content), 0600)
 }
 
 // Serialize returns the task as a string in the markdown+YAML format.
@@ -86,7 +88,9 @@ func Serialize(t *Task) (string, error) {
 	if err := encoder.Encode(fm); err != nil {
 		return "", fmt.Errorf("marshal front matter: %w", err)
 	}
-	encoder.Close()
+	if err := encoder.Close(); err != nil {
+		return "", fmt.Errorf("close encoder: %w", err)
+	}
 
 	// Combine with markdown content
 	return fmt.Sprintf("---\n%s---\n\n%s\n", buf.String(), t.Content), nil

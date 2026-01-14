@@ -63,11 +63,11 @@ func TestWriteAndLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Write default config
 	configPath := filepath.Join(tmpDir, "tanuki.yaml")
-	if err := WriteDefault(configPath); err != nil {
+	if err = WriteDefault(configPath); err != nil {
 		t.Fatalf("failed to write default config: %v", err)
 	}
 
@@ -100,11 +100,11 @@ func TestLoadWithOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Write default config
 	configPath := filepath.Join(tmpDir, "tanuki.yaml")
-	if err := WriteDefault(configPath); err != nil {
+	if err = WriteDefault(configPath); err != nil {
 		t.Fatalf("failed to write default config: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestValidation(t *testing.T) {
 	}{
 		{
 			name:        "valid config",
-			modify:      func(c *Config) {},
+			modify:      func(_ *Config) {},
 			expectError: false,
 		},
 		{
@@ -234,12 +234,17 @@ func TestConfigMerging(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save current dir and change to temp dir
-	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current dir: %v", err)
+	}
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Create project config with different values
 	projectConfig := `version: "1"
@@ -262,7 +267,7 @@ network:
   name: "custom-net"
 `
 
-	if err := os.WriteFile("tanuki.yaml", []byte(projectConfig), 0644); err != nil {
+	if err = os.WriteFile("tanuki.yaml", []byte(projectConfig), 0600); err != nil {
 		t.Fatalf("failed to write project config: %v", err)
 	}
 
@@ -296,12 +301,17 @@ func TestFindProjectConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save current dir and change to temp dir
-	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current dir: %v", err)
+	}
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Test no config found
 	loader := NewLoader()
@@ -310,7 +320,7 @@ func TestFindProjectConfig(t *testing.T) {
 	}
 
 	// Create tanuki.yaml
-	if err := WriteDefault("tanuki.yaml"); err != nil {
+	if err = WriteDefault("tanuki.yaml"); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -319,9 +329,13 @@ func TestFindProjectConfig(t *testing.T) {
 	}
 
 	// Remove tanuki.yaml and create .tanuki/config/tanuki.yaml
-	os.Remove("tanuki.yaml")
-	os.MkdirAll(".tanuki/config", 0755)
-	if err := WriteDefault(".tanuki/config/tanuki.yaml"); err != nil {
+	if err = os.Remove("tanuki.yaml"); err != nil {
+		t.Fatalf("failed to remove tanuki.yaml: %v", err)
+	}
+	if err = os.MkdirAll(".tanuki/config", 0750); err != nil {
+		t.Fatalf("failed to create .tanuki/config: %v", err)
+	}
+	if err = WriteDefault(".tanuki/config/tanuki.yaml"); err != nil {
 		t.Fatalf("failed to write alt config: %v", err)
 	}
 
@@ -349,12 +363,17 @@ func TestBuildConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save current dir and change to temp dir
-	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current dir: %v", err)
+	}
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Config with build instead of image name
 	buildConfig := `version: "1"
@@ -376,7 +395,7 @@ network:
   name: "tanuki-net"
 `
 
-	if err := os.WriteFile("tanuki.yaml", []byte(buildConfig), 0644); err != nil {
+	if err = os.WriteFile("tanuki.yaml", []byte(buildConfig), 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -404,12 +423,17 @@ func TestServiceConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save current dir and change to temp dir
-	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current dir: %v", err)
+	}
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Config with services
 	serviceConfig := `version: "1"
@@ -457,7 +481,7 @@ services:
       retries: 5
 `
 
-	if err := os.WriteFile("tanuki.yaml", []byte(serviceConfig), 0644); err != nil {
+	if err = os.WriteFile("tanuki.yaml", []byte(serviceConfig), 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -534,7 +558,7 @@ func TestServiceValidation(t *testing.T) {
 	}{
 		{
 			name:        "valid services",
-			modify:      func(c *Config) {},
+			modify:      func(_ *Config) {},
 			expectError: false,
 		},
 		{

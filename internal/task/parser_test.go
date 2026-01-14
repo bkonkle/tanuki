@@ -307,7 +307,7 @@ priority: high
 Do the thing.
 `
 	validPath := filepath.Join(dir, "valid-task.md")
-	if err := os.WriteFile(validPath, []byte(validContent), 0644); err != nil {
+	if err := os.WriteFile(validPath, []byte(validContent), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 

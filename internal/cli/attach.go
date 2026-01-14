@@ -1,3 +1,4 @@
+// Package cli provides the command-line interface for tanuki.
 package cli
 
 import (
@@ -33,7 +34,7 @@ func init() {
 	rootCmd.AddCommand(attachCmd)
 }
 
-func runAttach(cmd *cobra.Command, args []string) error {
+func runAttach(_ *cobra.Command, args []string) error {
 	agentName := args[0]
 
 	// Load config

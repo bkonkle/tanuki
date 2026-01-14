@@ -90,7 +90,7 @@ func init() {
 	rootCmd.AddCommand(roleCmd)
 }
 
-func runRoleList(cmd *cobra.Command, args []string) error {
+func runRoleList(_ *cobra.Command, _ []string) error {
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
@@ -109,21 +109,21 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tDESCRIPTION\tSOURCE")
-	fmt.Fprintln(w, "----\t-----------\t------")
+	_, _ = fmt.Fprintln(w, "NAME\tDESCRIPTION\tSOURCE")
+	_, _ = fmt.Fprintln(w, "----\t-----------\t------")
 
 	for _, r := range roles {
 		source := "project"
 		if r.Builtin {
 			source = "builtin"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", r.Name, r.Description, source)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", r.Name, r.Description, source)
 	}
 
 	return w.Flush()
 }
 
-func runRoleShow(cmd *cobra.Command, args []string) error {
+func runRoleShow(_ *cobra.Command, args []string) error {
 	roleName := args[0]
 
 	projectRoot, err := os.Getwd()
@@ -185,7 +185,7 @@ func runRoleShow(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runRoleInit(cmd *cobra.Command, args []string) error {
+func runRoleInit(_ *cobra.Command, _ []string) error {
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
@@ -210,7 +210,7 @@ func runRoleInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runRoleCreate(cmd *cobra.Command, args []string) error {
+func runRoleCreate(_ *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Validate role name

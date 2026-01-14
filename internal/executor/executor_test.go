@@ -101,7 +101,7 @@ func TestBuildCommand(t *testing.T) {
 func TestRun(t *testing.T) {
 	outputCalled := false
 	docker := &mockDockerManager{
-		execWithOutputFn: func(containerID string, cmd []string) (string, error) {
+		execWithOutputFn: func(_ string, _ []string) (string, error) {
 			outputCalled = true
 			// Simulate stream-json output with session ID
 			return `{"type":"session_start","session_id":"test-123"}
@@ -138,11 +138,11 @@ func TestRun(t *testing.T) {
 func TestRunFollow(t *testing.T) {
 	execCalled := false
 	docker := &mockDockerManager{
-		execFn: func(containerID string, cmd []string, opts docker.ExecOptions) error {
+		execFn: func(_ string, _ []string, opts docker.ExecOptions) error {
 			execCalled = true
 			// Simulate writing to stdout
 			if opts.Stdout != nil {
-				opts.Stdout.Write([]byte(`{"type":"session_start","session_id":"test-456"}
+				_, _ = opts.Stdout.Write([]byte(`{"type":"session_start","session_id":"test-456"}
 {"type":"content","content":"Hello world"}`))
 			}
 			return nil
@@ -277,7 +277,7 @@ func TestParseCommand(t *testing.T) {
 
 func TestVerifyClaudeInstalled(t *testing.T) {
 	docker := &mockDockerManager{
-		execWithOutputFn: func(containerID string, cmd []string) (string, error) {
+		execWithOutputFn: func(_ string, cmd []string) (string, error) {
 			if cmd[0] == "which" && cmd[1] == "claude" {
 				return "/usr/local/bin/claude\n", nil
 			}
@@ -294,7 +294,7 @@ func TestVerifyClaudeInstalled(t *testing.T) {
 
 func TestVerifyClaudeInstalled_NotFound(t *testing.T) {
 	docker := &mockDockerManager{
-		execWithOutputFn: func(containerID string, cmd []string) (string, error) {
+		execWithOutputFn: func(_ string, _ []string) (string, error) {
 			return "", ErrClaudeNotFound
 		},
 	}
@@ -308,7 +308,7 @@ func TestVerifyClaudeInstalled_NotFound(t *testing.T) {
 
 func TestIsRunning(t *testing.T) {
 	docker := &mockDockerManager{
-		execWithOutputFn: func(containerID string, cmd []string) (string, error) {
+		execWithOutputFn: func(_ string, _ []string) (string, error) {
 			// Simulate pgrep finding claude processes
 			return "12345\n67890\n", nil
 		},
@@ -326,11 +326,11 @@ func TestIsRunning(t *testing.T) {
 
 func TestIsRunning_NotRunning(t *testing.T) {
 	docker := &mockDockerManager{
-		execWithOutputFn: func(containerID string, cmd []string) (string, error) {
+		execWithOutputFn: func(_ string, _ []string) (string, error) {
 			// Simulate pgrep not finding any processes
 			return "", nil
 		},
-		containerRunningFn: func(containerID string) bool {
+		containerRunningFn: func(_ string) bool {
 			return true
 		},
 	}
@@ -347,7 +347,7 @@ func TestIsRunning_NotRunning(t *testing.T) {
 
 func TestRun_ContainerNotRunning(t *testing.T) {
 	docker := &mockDockerManager{
-		containerRunningFn: func(containerID string) bool {
+		containerRunningFn: func(_ string) bool {
 			return false
 		},
 	}

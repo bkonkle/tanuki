@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// mockManager implements Manager for testing.
+// mockManager implements ManagerInterface for testing.
 type mockManager struct {
 	connections map[string]*Connection
 	statuses    map[string]*Status
 }
 
-func (m *mockManager) StartServices() error           { return nil }
-func (m *mockManager) StopServices() error            { return nil }
-func (m *mockManager) StartService(name string) error { return nil }
-func (m *mockManager) StopService(name string) error  { return nil }
+func (m *mockManager) StartServices() error        { return nil }
+func (m *mockManager) StopServices() error         { return nil }
+func (m *mockManager) StartService(_ string) error { return nil }
+func (m *mockManager) StopService(_ string) error  { return nil }
 
 func (m *mockManager) GetStatus(name string) (*Status, error) {
 	if status, ok := m.statuses[name]; ok {

@@ -56,7 +56,7 @@ func (q *Queue) Dequeue(role string) (*Task, error) {
 		return nil, fmt.Errorf("no tasks for role %q", role)
 	}
 
-	item := heap.Pop(pq).(*queueItem)
+	item, _ := heap.Pop(pq).(*queueItem)
 	return item.task, nil
 }
 
@@ -144,7 +144,7 @@ func (q *Queue) DequeueAll(role string) []*Task {
 
 	tasks := make([]*Task, 0, pq.Len())
 	for pq.Len() > 0 {
-		item := heap.Pop(pq).(*queueItem)
+		item, _ := heap.Pop(pq).(*queueItem)
 		tasks = append(tasks, item.task)
 	}
 

@@ -24,8 +24,8 @@ var (
 	ErrHealthCheckFailed = errors.New("health check failed")
 )
 
-// Manager defines the interface for service lifecycle management.
-type Manager interface {
+// ManagerInterface defines the interface for service lifecycle management.
+type ManagerInterface interface {
 	// StartServices starts all enabled services.
 	StartServices() error
 

@@ -9,21 +9,21 @@ import (
 
 // CompletionHandler handles task completion detection and validation.
 type CompletionHandler struct {
-	taskMgr   TaskManagerInterface
+	taskMgr   ManagerInterface
 	validator *Validator
 	events    chan<- Event
 }
 
-// TaskManagerInterface defines the methods needed by CompletionHandler.
+// ManagerInterface defines the methods needed by CompletionHandler.
 // This allows for loose coupling with the actual TaskManager implementation.
-type TaskManagerInterface interface {
+type ManagerInterface interface {
 	Get(id string) (*Task, error)
 	UpdateStatus(id string, status Status) error
 	Unassign(id string) error
 }
 
 // NewCompletionHandler creates a new completion handler.
-func NewCompletionHandler(taskMgr TaskManagerInterface, workdir string, events chan<- Event) *CompletionHandler {
+func NewCompletionHandler(taskMgr ManagerInterface, workdir string, events chan<- Event) *CompletionHandler {
 	return &CompletionHandler{
 		taskMgr:   taskMgr,
 		validator: NewValidator(workdir),

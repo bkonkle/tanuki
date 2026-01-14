@@ -441,7 +441,7 @@ func TestSpawn_AlreadyExists(t *testing.T) {
 func TestSpawn_WorktreeFailure_Rollback(t *testing.T) {
 	cfg := testConfig()
 	git := &mockGitManager{
-		createWorktreeFn: func(name string) (string, error) {
+		createWorktreeFn: func(_ string) (string, error) {
 			return "", errors.New("worktree creation failed")
 		},
 	}
@@ -468,14 +468,14 @@ func TestSpawn_ContainerFailure_Rollback(t *testing.T) {
 
 	worktreeRemoved := false
 	git := &mockGitManager{
-		removeWorktreeFn: func(name string, deleteBranch bool) error {
+		removeWorktreeFn: func(_ string, _ bool) error {
 			worktreeRemoved = true
 			return nil
 		},
 	}
 
 	docker := &mockDockerManager{
-		createAgentContainerWithOptionsFn: func(name string, worktreePath string, opts docker.AgentContainerOptions) (string, error) {
+		createAgentContainerWithOptionsFn: func(_ string, _ string, _ docker.AgentContainerOptions) (string, error) {
 			return "", errors.New("container creation failed")
 		},
 	}
@@ -602,7 +602,7 @@ func TestStopStart(t *testing.T) {
 	manager, _ := NewManager(cfg, git, docker, state, executor)
 
 	// Create agent
-	agent, _ := manager.Spawn("test-agent", SpawnOptions{})
+	_, _ = manager.Spawn("test-agent", SpawnOptions{})
 
 	// Stop agent
 	err := manager.Stop("test-agent")
@@ -611,7 +611,7 @@ func TestStopStart(t *testing.T) {
 	}
 
 	// Verify status
-	agent, _ = state.GetAgent("test-agent")
+	agent, _ := state.GetAgent("test-agent")
 	if agent.Status != "stopped" {
 		t.Errorf("expected status 'stopped', got %q", agent.Status)
 	}
@@ -691,10 +691,10 @@ func TestReconcile(t *testing.T) {
 
 	containerExists := true
 	docker := &mockDockerManager{
-		containerExistsFn: func(containerID string) bool {
+		containerExistsFn: func(_ string) bool {
 			return containerExists
 		},
-		containerRunningFn: func(containerID string) bool {
+		containerRunningFn: func(_ string) bool {
 			return false
 		},
 	}
@@ -810,7 +810,7 @@ func TestRun(t *testing.T) {
 	manager, _ := NewManager(cfg, git, docker, state, executor)
 
 	// Create agent
-	agent, err := manager.Spawn("test-agent", SpawnOptions{})
+	_, err := manager.Spawn("test-agent", SpawnOptions{})
 	if err != nil {
 		t.Fatalf("Spawn failed: %v", err)
 	}
@@ -822,7 +822,7 @@ func TestRun(t *testing.T) {
 	}
 
 	// Verify agent returned to idle status
-	agent, _ = state.GetAgent("test-agent")
+	agent, _ := state.GetAgent("test-agent")
 	if agent.Status != "idle" {
 		t.Errorf("expected status 'idle' after run, got %q", agent.Status)
 	}
@@ -860,10 +860,10 @@ func TestAgent_UpdatedAt(t *testing.T) {
 	_ = manager.Stop("test-agent")
 	agent, _ = state.GetAgent("test-agent")
 
-	if agent.CreatedAt != createdAt {
+	if !agent.CreatedAt.Equal(createdAt) {
 		t.Error("CreatedAt should not change")
 	}
-	if agent.UpdatedAt == updatedAt {
+	if agent.UpdatedAt.Equal(updatedAt) {
 		t.Error("UpdatedAt should be updated")
 	}
 }

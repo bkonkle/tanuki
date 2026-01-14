@@ -41,7 +41,7 @@ func init() {
 	rootCmd.AddCommand(dashboardCmd)
 }
 
-func runDashboard(cmd *cobra.Command, args []string) error {
+func runDashboard(_ *cobra.Command, _ []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {

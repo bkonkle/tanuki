@@ -48,10 +48,10 @@ func TestQueue_PriorityOrder(t *testing.T) {
 	q := NewQueue()
 
 	// Add in random priority order
-	q.Enqueue(&Task{ID: "low", Role: "backend", Priority: PriorityLow})
-	q.Enqueue(&Task{ID: "critical", Role: "backend", Priority: PriorityCritical})
-	q.Enqueue(&Task{ID: "medium", Role: "backend", Priority: PriorityMedium})
-	q.Enqueue(&Task{ID: "high", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "low", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "critical", Role: "backend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "medium", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "high", Role: "backend", Priority: PriorityHigh})
 
 	// Should come out in priority order
 	expected := []string{"critical", "high", "medium", "low"}
@@ -69,9 +69,9 @@ func TestQueue_PriorityOrder(t *testing.T) {
 func TestQueue_RoleIsolation(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "be1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "fe1", Role: "frontend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "be2", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "be1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "fe1", Role: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "be2", Role: "backend", Priority: PriorityMedium})
 
 	// Backend should only see backend tasks
 	if q.SizeByRole("backend") != 2 {
@@ -92,7 +92,7 @@ func TestQueue_RoleIsolation(t *testing.T) {
 func TestQueue_Peek(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
 
 	// Peek should not remove
 	task1, _ := q.Peek("backend")
@@ -125,12 +125,12 @@ func TestQueue_PeekEmptyRole(t *testing.T) {
 	}
 }
 
-func TestQueue_ConcurrentAccess(t *testing.T) {
+func TestQueue_ConcurrentAccess(_ *testing.T) {
 	q := NewQueue()
 
 	// Pre-populate
 	for i := 0; i < 100; i++ {
-		q.Enqueue(&Task{
+		_ = q.Enqueue(&Task{
 			ID:       fmt.Sprintf("T%d", i),
 			Role:     "backend",
 			Priority: PriorityMedium,
@@ -148,7 +148,7 @@ func TestQueue_ConcurrentAccess(t *testing.T) {
 			for j := 0; j < 100; j++ {
 				q.Size()
 				q.SizeByRole("backend")
-				q.Peek("backend")
+				_, _ = q.Peek("backend")
 				q.Contains("T50")
 			}
 		}()
@@ -157,12 +157,12 @@ func TestQueue_ConcurrentAccess(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
-				q.Enqueue(&Task{
+				_ = q.Enqueue(&Task{
 					ID:       fmt.Sprintf("new-%d-%d", id, j),
 					Role:     "backend",
 					Priority: PriorityHigh,
 				})
-				q.Dequeue("backend")
+				_, _ = q.Dequeue("backend")
 			}
 		}(i)
 	}
@@ -173,9 +173,9 @@ func TestQueue_ConcurrentAccess(t *testing.T) {
 func TestQueue_Remove(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
-	q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
 
 	// Remove middle priority
 	removed := q.Remove("T2")
@@ -195,7 +195,7 @@ func TestQueue_Remove(t *testing.T) {
 func TestQueue_RemoveNonexistent(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
 
 	removed := q.Remove("nonexistent")
 	if removed {
@@ -206,7 +206,7 @@ func TestQueue_RemoveNonexistent(t *testing.T) {
 func TestQueue_Contains(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
 
 	if !q.Contains("T1") {
 		t.Error("Contains(T1) should be true")
@@ -220,9 +220,9 @@ func TestQueue_Contains(t *testing.T) {
 func TestQueue_Roles(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T3", Role: "qa", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "qa", Priority: PriorityHigh})
 
 	roles := q.Roles()
 	if len(roles) != 3 {
@@ -245,8 +245,8 @@ func TestQueue_Roles(t *testing.T) {
 func TestQueue_RolesEmpty(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Dequeue("backend")
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_, _ = q.Dequeue("backend")
 
 	roles := q.Roles()
 	if len(roles) != 0 {
@@ -257,8 +257,8 @@ func TestQueue_RolesEmpty(t *testing.T) {
 func TestQueue_Clear(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
 
 	q.Clear()
 
@@ -303,9 +303,9 @@ func TestQueue_EnqueueAllWithError(t *testing.T) {
 func TestQueue_DequeueAll(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityLow})
-	q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityCritical})
-	q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityMedium})
 
 	tasks := q.DequeueAll("backend")
 
@@ -339,9 +339,9 @@ func TestQueue_DequeueAllEmpty(t *testing.T) {
 func TestQueue_Stats(t *testing.T) {
 	q := NewQueue()
 
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
-	q.Enqueue(&Task{ID: "T3", Role: "frontend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "frontend", Priority: PriorityCritical})
 
 	stats := q.Stats()
 
@@ -374,9 +374,9 @@ func TestQueue_DefaultPriority(t *testing.T) {
 	q := NewQueue()
 
 	// Task with empty priority should default to medium behavior
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: ""})
-	q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: ""})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
 
 	// High should come first, then empty (treated as medium), then low
 	task1, _ := q.Dequeue("backend")
@@ -399,9 +399,9 @@ func TestQueue_SamePriorityFIFO(t *testing.T) {
 
 	// Tasks with same priority should maintain order relative to heap behavior
 	// Note: heap doesn't guarantee FIFO for same priority, but should be stable
-	q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
-	q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityHigh})
 
 	// All should come out, we don't guarantee FIFO but should get all 3
 	ids := make(map[string]bool)

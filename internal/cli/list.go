@@ -34,7 +34,7 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 }
 
-func runList(cmd *cobra.Command, args []string) error {
+func runList(_ *cobra.Command, _ []string) error {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -67,9 +67,9 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Reconcile state with Docker before listing
-	if err := agentMgr.Reconcile(); err != nil {
+	if reconcileErr := agentMgr.Reconcile(); reconcileErr != nil {
 		// Log warning but continue
-		fmt.Fprintf(os.Stderr, "Warning: failed to reconcile state: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to reconcile state: %v\n", reconcileErr)
 	}
 
 	// Get all agents
@@ -97,12 +97,12 @@ func runList(cmd *cobra.Command, args []string) error {
 
 func printTable(agents []*agent.Agent) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSTATUS\tBRANCH\tUPTIME")
-	fmt.Fprintln(w, "----\t------\t------\t------")
+	_, _ = fmt.Fprintln(w, "NAME\tSTATUS\tBRANCH\tUPTIME")
+	_, _ = fmt.Fprintln(w, "----\t------\t------\t------")
 
 	for _, ag := range agents {
 		uptime := formatDuration(time.Since(ag.CreatedAt))
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			ag.Name,
 			colorStatus(string(ag.Status)),
 			ag.Branch,

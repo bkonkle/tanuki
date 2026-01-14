@@ -24,7 +24,7 @@ func init() {
 	projectCmd.AddCommand(projectListCmd)
 }
 
-func runProjectList(cmd *cobra.Command, args []string) error {
+func runProjectList(_ *cobra.Command, _ []string) error {
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)
@@ -41,7 +41,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 
 	// Create task manager and project manager
 	taskMgr := task.NewManager(&task.Config{ProjectRoot: projectRoot})
-	projMgr := project.NewProjectManager(taskDir, taskMgr)
+	projMgr := project.NewManager(taskDir, taskMgr)
 
 	// Scan for projects
 	if err := projMgr.Scan(); err != nil {
@@ -62,11 +62,11 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Projects (%d):\n\n", len(projects))
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTASKS\tWORKSTREAMS\tPENDING\tCOMPLETE\tDESCRIPTION")
-		fmt.Fprintln(w, "----\t-----\t-----------\t-------\t--------\t-----------")
+		_, _ = fmt.Fprintln(w, "NAME\tTASKS\tWORKSTREAMS\tPENDING\tCOMPLETE\tDESCRIPTION")
+		_, _ = fmt.Fprintln(w, "----\t-----\t-----------\t-------\t--------\t-----------")
 
 		for _, p := range projects {
-			stats := p.Stats()
+			stats := p.GetStats()
 			workstreams := p.GetWorkstreams()
 
 			pending := stats.ByStatus[task.StatusPending] + stats.ByStatus[task.StatusBlocked]
@@ -77,7 +77,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 				desc = "-"
 			}
 
-			fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s\n",
 				p.Name,
 				stats.Total,
 				len(workstreams),
@@ -87,7 +87,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 			)
 		}
 
-		w.Flush()
+		_ = w.Flush()
 	}
 
 	// Print root tasks summary
