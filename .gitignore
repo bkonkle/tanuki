@@ -1,4 +1,45 @@
+# Environment variables
 .env
 .env.*
-/ssh
+.env.local
+
+# Build outputs
 /bin
+/dist
+/build
+/out
+
+# SSH keys and secrets
+/ssh
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Cache directories
+.cache/
+.turbo/
+.parcel-cache/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,6 +1,7 @@
 # Tanuki
 
-A multi-agent orchestration CLI for Claude Code. Spawn isolated agents, each with their own git worktree and Docker container, to work on tasks in parallel.
+A multi-agent orchestration CLI for code agents. Spawn isolated agents, each with their own git
+worktree and Docker container, to work on tasks in parallel.
 
 ## Features
 
@@ -65,32 +66,32 @@ go install github.com/bkonkle/tanuki/cmd/tanuki@latest
 
 ### Agent Lifecycle
 
-| Command | Description |
-|---------|-------------|
-| `tanuki spawn <name>` | Create a new agent with worktree and container |
-| `tanuki list` | List all agents and their status |
-| `tanuki status <name>` | Show detailed agent status |
-| `tanuki stop <name>` | Stop an agent's container |
-| `tanuki start <name>` | Start a stopped agent |
-| `tanuki remove <name>` | Remove agent completely |
+| Command                | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `tanuki spawn <name>`  | Create a new agent with worktree and container |
+| `tanuki list`          | List all agents and their status               |
+| `tanuki status <name>` | Show detailed agent status                     |
+| `tanuki stop <name>`   | Stop an agent's container                      |
+| `tanuki start <name>`  | Start a stopped agent                          |
+| `tanuki remove <name>` | Remove agent completely                        |
 
 ### Task Execution
 
-| Command | Description |
-|---------|-------------|
-| `tanuki run <agent> "<prompt>"` | Send a task (async by default) |
-| `tanuki run <agent> "<prompt>" --follow` | Stream output in real-time |
-| `tanuki run <agent> "<prompt>" --ralph` | Loop until completion signal |
-| `tanuki logs <agent>` | View agent's Claude Code output |
-| `tanuki attach <agent>` | Attach to running Claude session |
+| Command                                  | Description                      |
+| ---------------------------------------- | -------------------------------- |
+| `tanuki run <agent> "<prompt>"`          | Send a task (async by default)   |
+| `tanuki run <agent> "<prompt>" --follow` | Stream output in real-time       |
+| `tanuki run <agent> "<prompt>" --ralph`  | Loop until completion signal     |
+| `tanuki logs <agent>`                    | View agent's Claude Code output  |
+| `tanuki attach <agent>`                  | Attach to running Claude session |
 
 ### Git Operations
 
-| Command | Description |
-|---------|-------------|
-| `tanuki diff <agent>` | Show changes made by agent |
-| `tanuki merge <agent>` | Merge agent's branch |
-| `tanuki merge <agent> --pr` | Create GitHub PR instead |
+| Command                     | Description                |
+| --------------------------- | -------------------------- |
+| `tanuki diff <agent>`       | Show changes made by agent |
+| `tanuki merge <agent>`      | Merge agent's branch       |
+| `tanuki merge <agent> --pr` | Create GitHub PR instead   |
 
 ## Execution Modes
 
@@ -137,7 +138,7 @@ tanuki run auth "Get tests passing" --ralph --verify "npm test"
 Tanuki works without configuration using sensible defaults. Optionally create `tanuki.yaml`:
 
 ```yaml
-version: "1"
+version: '1'
 
 image:
   name: bkonkle/tanuki
