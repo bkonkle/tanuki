@@ -99,6 +99,9 @@ type ExecutionResult struct {
 	// CompletedAt is when execution completed
 	CompletedAt time.Time
 
+	// LogFilePath is the path to the execution log file (if captured)
+	LogFilePath string
+
 	// Error is any error that occurred during execution
 	Error error
 }

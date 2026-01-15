@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Network Connectivity Documentation** - Added guidance for accessing external services
+  - Instructions for configuring network to match docker-compose projects
+  - Examples for connecting containers to tanuki-net network
+  - Network inspection commands for troubleshooting
+
 ### Changed
 
 - **Default Model** - Changed default Claude model to Haiku 4.5 (claude-haiku-4-5-20250107)

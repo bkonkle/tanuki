@@ -333,7 +333,7 @@ image:
   tag: "22"
 
 network:
-  name: tanuki
+  name: tanuki-net  # Docker network for agent containers
 
 worktrees:
   prefix: tanuki
@@ -401,6 +401,38 @@ POSTGRES_PASSWORD=tanuki
 REDIS_HOST=tanuki-svc-redis
 REDIS_PORT=6379
 REDIS_URL=tanuki-svc-redis:6379
+```
+
+### Network Connectivity
+
+Tanuki agents run in Docker containers on the `tanuki-net` network by default. To access services running on other networks (like LocalStack, databases, etc.), you have two options:
+
+**Option 1: Use the same network (recommended)**
+
+Configure Tanuki to use your existing Docker network:
+
+```yaml
+# tanuki.yaml
+network:
+  name: my-project_default  # Use your docker-compose network
+```
+
+**Option 2: Connect services to tanuki-net**
+
+```bash
+# Connect an existing container to the tanuki network
+docker network connect tanuki-net localstack-main
+docker network connect tanuki-net postgres-db
+```
+
+**Finding your network name:**
+
+```bash
+# List networks
+docker network ls
+
+# Inspect a container to see its networks
+docker inspect <container-name> --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
 ```
 
 ## TUI Dashboard

@@ -379,6 +379,57 @@ func (m *Manager) UpdateStatus(id string, status Status) error {
 	return nil
 }
 
+// UpdateFailure marks a task as failed and persists error information to the task file.
+// This method sets the task status to failed and stores the error message and log file path.
+func (m *Manager) UpdateFailure(id string, err error, logPath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, ok := m.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+
+	task.Status = StatusFailed
+	if err != nil {
+		task.FailureMessage = err.Error()
+	}
+	task.LogFilePath = logPath
+
+	// Write back to file
+	if writeErr := WriteFile(task); writeErr != nil {
+		return fmt.Errorf("write task file: %w", writeErr)
+	}
+
+	return nil
+}
+
+// Update persists task changes to file.
+// This is a general update method that writes all task fields.
+func (m *Manager) Update(task *Task) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if task == nil {
+		return fmt.Errorf("task is nil")
+	}
+
+	// Ensure task exists in cache
+	if _, ok := m.tasks[task.ID]; !ok {
+		return fmt.Errorf("task %q not found", task.ID)
+	}
+
+	// Update cache
+	m.tasks[task.ID] = task
+
+	// Write back to file
+	if err := WriteFile(task); err != nil {
+		return fmt.Errorf("write task file: %w", err)
+	}
+
+	return nil
+}
+
 // Assign assigns a task to an agent.
 // The task must be in pending or blocked status.
 func (m *Manager) Assign(id string, agentName string) error {
