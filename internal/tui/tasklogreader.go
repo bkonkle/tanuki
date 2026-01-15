@@ -38,7 +38,7 @@ func (r *TaskLogReader) LoadLogs() (string, error) {
 	}
 
 	// Read file content
-	content, err := os.ReadFile(fullPath)
+	content, err := os.ReadFile(fullPath) //nolint:gosec // Path is constructed from trusted project config
 	if err != nil {
 		return "", fmt.Errorf("read log file: %w", err)
 	}
@@ -61,7 +61,7 @@ func (r *TaskLogReader) GetLastN(n int) (string, error) {
 	}
 
 	// Open file
-	file, err := os.Open(fullPath)
+	file, err := os.Open(fullPath) //nolint:gosec // Path is constructed from trusted project config
 	if err != nil {
 		return "", fmt.Errorf("open log file: %w", err)
 	}
@@ -102,7 +102,7 @@ func (r *TaskLogReader) GetLineCount() (int, error) {
 	}
 
 	// Open file
-	file, err := os.Open(fullPath)
+	file, err := os.Open(fullPath) //nolint:gosec // Path is constructed from trusted project config
 	if err != nil {
 		return 0, fmt.Errorf("open log file: %w", err)
 	}
