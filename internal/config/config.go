@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bkonkle/tanuki/internal/service"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -48,9 +47,6 @@ type Config struct {
 
 	// Network contains Docker network settings
 	Network NetworkConfig `yaml:"network" mapstructure:"network"`
-
-	// Services contains shared service configurations (Postgres, Redis, etc.)
-	Services map[string]*service.Config `yaml:"services,omitempty" mapstructure:"services"`
 }
 
 // RoleConfig contains configuration for a specific role.
@@ -126,7 +122,7 @@ type AgentDefaults struct {
 	// When exceeded, the workstream session is saved and a fresh instance starts
 	MaxWorkstreamTurns int `yaml:"max_workstream_turns,omitempty" mapstructure:"max_workstream_turns" validate:"omitempty,gte=50,lte=1000"`
 
-	// Model is the Claude model to use (e.g., "claude-sonnet-4-5-20250514")
+	// Model is the Claude model to use (e.g., "claude-haiku-4-5-20250514")
 	Model string `yaml:"model" mapstructure:"model" validate:"required"`
 
 	// Resources specifies container resource limits
@@ -313,75 +309,6 @@ func (l *Loader) Validate(cfg *Config) error {
 		}
 	}
 
-	// Validate service configurations
-	if err := l.validateServices(cfg); err != nil {
-		if svcErrs, ok := err.(ValidationErrors); ok {
-			errs = append(errs, svcErrs...)
-		} else {
-			return err
-		}
-	}
-
-	if len(errs) > 0 {
-		return errs
-	}
-
-	return nil
-}
-
-// validateServices validates all service configurations.
-func (l *Loader) validateServices(cfg *Config) error {
-	if cfg.Services == nil {
-		return nil
-	}
-
-	var errs ValidationErrors
-
-	for name, svcCfg := range cfg.Services {
-		if svcCfg == nil {
-			errs = append(errs, ValidationError{
-				Field:   fmt.Sprintf("services.%s", name),
-				Tag:     "required",
-				Value:   nil,
-				Message: fmt.Sprintf("service '%s' configuration is nil", name),
-			})
-			continue
-		}
-
-		// Validate that enabled services have required fields
-		if svcCfg.Enabled {
-			if svcCfg.Image == "" {
-				errs = append(errs, ValidationError{
-					Field:   fmt.Sprintf("services.%s.image", name),
-					Tag:     "required",
-					Value:   "",
-					Message: fmt.Sprintf("service '%s': image is required when enabled", name),
-				})
-			}
-
-			if svcCfg.Port <= 0 {
-				errs = append(errs, ValidationError{
-					Field:   fmt.Sprintf("services.%s.port", name),
-					Tag:     "gt",
-					Value:   svcCfg.Port,
-					Message: fmt.Sprintf("service '%s': port must be greater than 0", name),
-				})
-			}
-		}
-
-		// Validate healthcheck if present
-		if svcCfg.Healthcheck != nil {
-			if len(svcCfg.Healthcheck.Command) == 0 {
-				errs = append(errs, ValidationError{
-					Field:   fmt.Sprintf("services.%s.healthcheck.command", name),
-					Tag:     "required",
-					Value:   nil,
-					Message: fmt.Sprintf("service '%s': healthcheck command is required", name),
-				})
-			}
-		}
-	}
-
 	if len(errs) > 0 {
 		return errs
 	}
@@ -404,7 +331,6 @@ func (l *Loader) setDefaults() {
 	l.v.SetDefault("git.branch_prefix", defaults.Git.BranchPrefix)
 	l.v.SetDefault("git.auto_push", defaults.Git.AutoPush)
 	l.v.SetDefault("network.name", defaults.Network.Name)
-	l.v.SetDefault("services", defaults.Services)
 }
 
 func (l *Loader) loadConfigFile(path string) error {
@@ -492,10 +418,6 @@ func DefaultConfig() *Config {
 		},
 		Network: NetworkConfig{
 			Name: "tanuki-net",
-		},
-		Services: map[string]*service.Config{
-			"postgres": service.DefaultPostgresConfig(),
-			"redis":    service.DefaultRedisConfig(),
 		},
 	}
 }

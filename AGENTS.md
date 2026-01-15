@@ -2,6 +2,60 @@
 
 Guidelines for contributing to Tanuki.
 
+## Development Setup
+
+After cloning the repository, run the setup script:
+
+```bash
+./scripts/setup.sh
+```
+
+This will:
+
+1. Check that required tools are installed (Go 1.21+, Docker, Git)
+2. Install `golangci-lint` if missing
+3. Download Go dependencies
+4. Install pre-commit hooks (or fallback git hooks)
+5. Build the binary
+
+### Requirements
+
+- **Go 1.25+** — [Download](https://go.dev/dl/)
+- **Docker** — [Get Docker](https://www.docker.com/get-started)
+- **Git** — Usually pre-installed
+- **golangci-lint** — Installed automatically by setup script
+- **pre-commit** (optional but recommended) — `brew install pre-commit` or `pipx install pre-commit`
+
+### Manual Setup
+
+If you prefer to set up manually:
+
+```bash
+# Install dependencies
+go mod download
+
+# Install golangci-lint
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Install pre-commit hooks (requires pre-commit)
+pre-commit install
+
+# Or use make target
+make setup
+```
+
+## Pre-commit Hooks
+
+Pre-commit hooks run automatically before each commit to catch issues early:
+
+- **go fmt** — Ensures code is formatted
+- **go vet** — Reports suspicious constructs
+- **go mod tidy** — Ensures go.mod is clean
+- **golangci-lint** — Comprehensive linting
+- **go test** — Runs the test suite
+
+If a hook fails, fix the issue and try committing again.
+
 ## Project Structure
 
 - `bin/` — Built binaries
@@ -55,7 +109,7 @@ Format: Follow [Keep a Changelog](https://keepachangelog.com/) conventions. Add 
 
 1. **Plan:** Define goal, changes, impact, and verification steps
 2. **Edit:** Make minimal, focused changes
-3. **Test:**
+3. **Test:** Always run linting and tests after making changes
    - Run `make test` for unit tests
    - Run `make lint` to check code quality
    - Test manually with real workflows when changing container/CLI behavior

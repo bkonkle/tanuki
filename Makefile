@@ -14,7 +14,7 @@ ifeq ($(INSTALL_PATH),/bin)
 	INSTALL_PATH := $(HOME)/go/bin
 endif
 
-.PHONY: all build install test clean lint fmt vet
+.PHONY: all build install test clean lint fmt vet setup ci
 
 all: build
 
@@ -55,6 +55,14 @@ vet:
 ## tidy: Tidy go modules
 tidy:
 	go mod tidy
+
+## setup: Set up development environment
+setup:
+	./scripts/setup.sh
+
+## ci: Run all CI checks locally (mirrors GitHub Actions)
+ci: fmt vet tidy lint test
+	@echo "All CI checks passed!"
 
 ## help: Show this help
 help:

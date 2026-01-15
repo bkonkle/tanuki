@@ -62,24 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Shared Services** (TANK-040, TANK-042, TANK-043)
-  - Service manager for Postgres, Redis, and custom services
-  - YAML configuration schema in `tanuki.yaml`
-  - Health monitoring with automatic restart on failure
-  - Volume persistence for service data
-
-- **Service CLI Commands** (TANK-044)
-  - `tanuki service start [name]` - Start all or specific service
-  - `tanuki service stop [name]` - Stop all or specific service
-  - `tanuki service status` - Show service health and ports
-  - `tanuki service logs <name>` - Stream service logs
-  - `tanuki service connect <name>` - Open interactive connection (psql, redis-cli)
-
-- **Agent Service Injection** (TANK-045)
-  - Automatic environment variable injection into agent containers
-  - Connection info for all running services (host, port, URL, credentials)
-  - Services accessible via Docker network
-
 - **TUI Dashboard** (TANK-041, TANK-046, TANK-047, TANK-048)
   - BubbleTea-based interactive terminal interface
   - Three-pane layout: agents, tasks, logs

@@ -42,7 +42,6 @@ corrupt your repo, or worse. Tanuki solves this by:
 - **Role System** — Define role-specific prompts and capabilities
 - **Projects + Tickets** — Project doc plus role-tagged tickets drive the workflow
 - **Workstreams** — Concurrency-limited workers per role that pick tasks in order
-- **Shared Services** — Run Postgres, Redis, and custom services accessible to all agents
 - **Ralph Loop Execution** — Single execution mode with completion signals and verification
 - **TUI Dashboard** — Interactive terminal interface for monitoring and control
 - **Git Integration** — Automatic worktree management, diff viewing, merge support
@@ -172,16 +171,6 @@ tanuki dashboard
 | `tanuki project status` | Show ticket and workstream status           |
 | `tanuki project stop`   | Stop all project workstreams                |
 | `tanuki project resume` | Resume a stopped project                    |
-
-### Shared Services
-
-| Command                         | Description                   |
-| ------------------------------- | ----------------------------- |
-| `tanuki service start [name]`   | Start all or specific service |
-| `tanuki service stop [name]`    | Stop all or specific service  |
-| `tanuki service status`         | Show service health and ports |
-| `tanuki service logs <name>`    | Stream service logs           |
-| `tanuki service connect <name>` | Open interactive connection   |
 
 ### Role Management
 
@@ -358,75 +347,6 @@ roles:
     system_prompt: |
       You are a QA engineer. You can only add or change tests.
     concurrency: 1
-
-services:
-  postgres:
-    enabled: true
-    image: postgres:16
-    port: 5432
-    environment:
-      POSTGRES_USER: tanuki
-      POSTGRES_PASSWORD: tanuki
-      POSTGRES_DB: tanuki_dev
-    volumes:
-      - tanuki-postgres:/var/lib/postgresql/data
-    healthcheck:
-      command: ['pg_isready', '-U', 'tanuki']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  redis:
-    enabled: true
-    image: redis:7-alpine
-    port: 6379
-    healthcheck:
-      command: ['redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 5
-```
-
-**When to use Tanuki shared services:**
-
-Tanuki shared services are designed for **agent-specific infrastructure** - databases, caches, or tools that agents need during development but that aren't part of your main application infrastructure.
-
-✅ **Use Tanuki services for:**
-- Scratch databases where agents can test queries or schema changes
-- Redis caches for agent coordination or temporary data
-- Agent-specific tooling (message queues, search engines, etc.)
-
-❌ **Don't use Tanuki services for:**
-- Project infrastructure already managed by docker-compose (LocalStack, app databases, etc.)
-- Services your actual application needs to run
-- Persistent production-like environments
-
-**Recommended approach for existing project infrastructure:**
-
-If you already have services running via docker-compose (LocalStack, databases, etc.), configure Tanuki to use the same network instead of duplicating them:
-
-```yaml
-# tanuki.yaml - Use existing infrastructure
-network:
-  name: my-project_default  # Match your docker-compose network
-```
-
-See [Network Connectivity](#network-connectivity) below for details.
-
-### Service Injection
-
-When Tanuki services are running, agents automatically receive connection environment variables:
-
-```bash
-POSTGRES_HOST=tanuki-svc-postgres
-POSTGRES_PORT=5432
-POSTGRES_URL=tanuki-svc-postgres:5432
-POSTGRES_USER=tanuki
-POSTGRES_PASSWORD=tanuki
-
-REDIS_HOST=tanuki-svc-redis
-REDIS_PORT=6379
-REDIS_URL=tanuki-svc-redis:6379
 ```
 
 ### Network Connectivity
