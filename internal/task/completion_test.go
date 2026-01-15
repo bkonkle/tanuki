@@ -38,6 +38,14 @@ func (m *mockTaskMgr) UpdateStatus(id string, status Status) error {
 	return nil
 }
 
+func (m *mockTaskMgr) Update(task *Task) error {
+	if task == nil {
+		return &ValidationError{Message: "task is nil"}
+	}
+	m.tasks[task.ID] = task
+	return nil
+}
+
 func (m *mockTaskMgr) Unassign(id string) error {
 	t, ok := m.tasks[id]
 	if !ok {
