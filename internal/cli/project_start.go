@@ -92,6 +92,18 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		fmt.Println("Scanning tasks...")
 	}
 
+	// Reconcile stale assignments from previous runs
+	// Pass nil to reset all assigned/in_progress tasks since we're starting fresh
+	if !dryRun {
+		resetCount, err := taskMgr.ReconcileStaleAssignments(nil)
+		if err != nil {
+			return fmt.Errorf("reconcile stale assignments: %w", err)
+		}
+		if resetCount > 0 {
+			fmt.Printf("  Reset %d stale task assignment(s) to pending\n", resetCount)
+		}
+	}
+
 	// Collect workstreams by role
 	type workstreamKey struct {
 		project    string
@@ -143,6 +155,30 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	agentMgr, err := createAgentManager(projectRoot)
 	if err != nil {
 		return fmt.Errorf("create agent manager: %w", err)
+	}
+
+	// Reconcile agent state with actual containers
+	if err := agentMgr.Reconcile(); err != nil {
+		return fmt.Errorf("reconcile agents: %w", err)
+	}
+
+	// Remove agents that are in error state (stale containers)
+	agents, err := agentMgr.List()
+	if err != nil {
+		return fmt.Errorf("list agents: %w", err)
+	}
+	staleCount := 0
+	for _, a := range agents {
+		if a.Status == state.StatusError {
+			if err := agentMgr.Remove(a.Name, agent.RemoveOptions{Force: true, KeepBranch: false}); err != nil {
+				log.Printf("Warning: failed to remove stale agent %s: %v", a.Name, err)
+			} else {
+				staleCount++
+			}
+		}
+	}
+	if staleCount > 0 {
+		fmt.Printf("  Removed %d stale agent(s) with missing containers\n", staleCount)
 	}
 
 	// Create readiness-aware scheduler (prevents deadlocks)

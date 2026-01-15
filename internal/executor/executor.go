@@ -314,7 +314,8 @@ func (e *Executor) buildCommand(prompt string, opts ExecuteOptions) []string {
 	cmd := []string{"claude", "-p", prompt}
 
 	// Use stream-json format for machine-parseable output
-	cmd = append(cmd, "--output-format", "stream-json")
+	// --verbose is required when using --print with --output-format stream-json
+	cmd = append(cmd, "--output-format", "stream-json", "--verbose")
 
 	// Allowed tools
 	if len(opts.AllowedTools) > 0 {

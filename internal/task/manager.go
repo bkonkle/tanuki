@@ -649,3 +649,35 @@ func (m *Manager) GetByProjectAndWorkstream(project, role, workstream string) []
 
 	return tasks
 }
+
+// ReconcileStaleAssignments resets tasks that are stuck in assigned, in_progress,
+// or failed status but whose agent is no longer active. Pass a set of active agent names;
+// tasks assigned to agents not in the set will be reset to pending.
+// If activeAgents is nil, all non-terminal tasks are reset.
+func (m *Manager) ReconcileStaleAssignments(activeAgents map[string]bool) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	count := 0
+	for _, task := range m.tasks {
+		// Only reset non-terminal, non-pending states
+		if task.Status != StatusAssigned && task.Status != StatusInProgress && task.Status != StatusFailed {
+			continue
+		}
+
+		// If no active agents provided, reset all stale tasks
+		// Otherwise, only reset if agent is not in the active set
+		shouldReset := activeAgents == nil || !activeAgents[task.AssignedTo]
+
+		if shouldReset {
+			task.AssignedTo = ""
+			task.Status = StatusPending
+			if err := WriteFile(task); err != nil {
+				return count, fmt.Errorf("write task %s: %w", task.ID, err)
+			}
+			count++
+		}
+	}
+
+	return count, nil
+}

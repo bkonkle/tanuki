@@ -480,7 +480,7 @@ func DefaultConfig() *Config {
 				"Grep",
 			},
 			MaxTurns: 50,
-			Model:    "claude-sonnet-4-5-20250514",
+			Model:    "claude-sonnet-4-5-20250929",
 			Resources: ResourceConfig{
 				Memory: "4g",
 				CPUs:   "2",

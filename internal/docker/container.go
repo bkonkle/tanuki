@@ -216,9 +216,9 @@ func (m *Manager) CreateAgentContainerWithOptions(name string, worktreePath stri
 				ReadOnly: false,
 			},
 			{
-				Source:   filepath.Join(homeDir, ".config", "claude-code"),
-				Target:   "/home/dev/.config/claude-code",
-				ReadOnly: true,
+				Source:   filepath.Join(homeDir, ".claude"),
+				Target:   "/home/node/.claude",
+				ReadOnly: false,
 			},
 		},
 		Network: m.config.Network.Name,
@@ -247,20 +247,37 @@ func (m *Manager) StartContainer(containerID string) error {
 // This is called after starting a container to ensure the Claude Code CLI is available.
 // The setup is idempotent - it checks if claude is already installed before installing.
 func (m *Manager) SetupContainer(containerID string) error {
-	// Check if claude is already installed
-	checkCmd := exec.Command("docker", "exec", containerID, "which", "claude")
+	// Check if claude is already installed (check as node user)
+	checkCmd := exec.Command("docker", "exec", "--user", "node", containerID, "which", "claude")
 	if checkCmd.Run() == nil {
 		// Claude is already installed, skip setup
 		return nil
 	}
 
-	// Install Claude Code CLI globally
+	// Install Claude Code CLI globally (as root, since npm -g requires permissions)
 	installCmd := exec.Command("docker", "exec", containerID,
 		"npm", "install", "-g", "@anthropic-ai/claude-code")
 	var stderr bytes.Buffer
 	installCmd.Stderr = &stderr
 	if err := installCmd.Run(); err != nil {
 		return fmt.Errorf("failed to install Claude Code CLI: %s", stderr.String())
+	}
+
+	// Start a background tail process to stream logs to Docker Desktop
+	// Create log file and make it writable by node user
+	setupLogCmd := exec.Command("docker", "exec", containerID,
+		"sh", "-c", "touch /tmp/tanuki.log && chmod 666 /tmp/tanuki.log")
+	if err := setupLogCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create log file: %v\n", err)
+	}
+
+	// Start tail process that writes to /dev/stdout (visible in docker logs)
+	// Using nohup and redirecting to background
+	tailCmd := exec.Command("docker", "exec", "-d", containerID,
+		"sh", "-c", "tail -F /tmp/tanuki.log > /proc/1/fd/1 2>&1")
+	if err := tailCmd.Run(); err != nil {
+		// Non-fatal - just warn
+		fmt.Fprintf(os.Stderr, "Warning: failed to setup log streaming: %v\n", err)
 	}
 
 	return nil
@@ -299,8 +316,29 @@ func (m *Manager) Exec(containerID string, command []string, opts ExecOptions) e
 		args = append(args, "-t")
 	}
 
+	// Run as node user (standard user in node:22 image)
+	args = append(args, "--user", "node")
+
 	args = append(args, containerID)
-	args = append(args, command...)
+
+	// Wrap command to tee output to a log file (streamed to Docker Desktop by tail process)
+	wrappedCmd := []string{"sh", "-c"}
+	cmdStr := ""
+	for i, arg := range command {
+		if i > 0 {
+			cmdStr += " "
+		}
+		// Quote arguments that contain spaces
+		if strings.Contains(arg, " ") {
+			cmdStr += "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
+		} else {
+			cmdStr += arg
+		}
+	}
+	// Tee to /tmp/tanuki.log which is tailed by a background process to stdout
+	cmdStr = "(" + cmdStr + " 2>&1) | tee -a /tmp/tanuki.log"
+	wrappedCmd = append(wrappedCmd, cmdStr)
+	args = append(args, wrappedCmd...)
 
 	cmd := exec.Command("docker", args...)
 
@@ -322,15 +360,36 @@ func (m *Manager) Exec(containerID string, command []string, opts ExecOptions) e
 }
 
 // ExecWithOutput executes a command in a container and returns the output.
+// Output is also echoed to os.Stdout/Stderr and the container's main process (for Docker Desktop).
 func (m *Manager) ExecWithOutput(containerID string, command []string) (string, error) {
-	args := make([]string, 0, 2+len(command))
-	args = append(args, "exec", containerID)
-	args = append(args, command...)
+	args := make([]string, 0, 4+len(command))
+	args = append(args, "exec", "--user", "node", containerID)
+
+	// Wrap command to tee output to a log file (streamed to Docker Desktop by tail process)
+	wrappedCmd := []string{"sh", "-c"}
+	cmdStr := ""
+	for i, arg := range command {
+		if i > 0 {
+			cmdStr += " "
+		}
+		// Quote arguments that contain spaces
+		if strings.Contains(arg, " ") {
+			cmdStr += "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
+		} else {
+			cmdStr += arg
+		}
+	}
+	// Tee to /tmp/tanuki.log which is tailed by a background process to stdout
+	cmdStr = "(" + cmdStr + " 2>&1) | tee -a /tmp/tanuki.log"
+	wrappedCmd = append(wrappedCmd, cmdStr)
+	args = append(args, wrappedCmd...)
 
 	cmd := exec.Command("docker", args...) //nolint:gosec // G204: docker args are constructed from trusted caller
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+
+	// Use MultiWriter to both capture and echo output
+	cmd.Stdout = io.MultiWriter(&stdout, os.Stdout)
+	cmd.Stderr = io.MultiWriter(&stderr, os.Stderr)
 
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("exec failed: %s", stderr.String())

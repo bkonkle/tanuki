@@ -7,7 +7,7 @@ Guidelines for contributing to Tanuki.
 - `bin/` — Built binaries
 - `cmd/` — Go entry points
 - `internal/` — Go packages
-- `scripts/` — Build and utility scripts
+- `docs/` — Design documentation
 
 ## Git Guidelines
 

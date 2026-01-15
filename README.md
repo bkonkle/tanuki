@@ -64,16 +64,6 @@ make install  # Installs to $GOPATH/bin
 go install github.com/bkonkle/tanuki/cmd/tanuki@latest
 ```
 
-### Docker Image
-
-```bash
-# Build locally
-./scripts/build-image.sh
-
-# Or pull from Docker Hub
-docker pull bkonkle/tanuki:latest
-```
-
 ## Quick Start
 
 ### Manual Workflow
@@ -339,8 +329,8 @@ version: '1'
 tasks_dir: tasks
 
 image:
-  name: bkonkle/tanuki
-  tag: latest
+  name: node
+  tag: "22"
 
 network:
   name: tanuki
@@ -351,7 +341,7 @@ worktrees:
 
 defaults:
   max_turns: 50
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5-20250929
 
 roles:
   backend:

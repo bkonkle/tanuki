@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Container Runtime** - Switched from custom bkonkle/tanuki image to node:22
+  - Removed Dockerfile and image build scripts
+  - Updated default image configuration to node:22
+  - Simplified deployment and maintenance
+
+### Fixed
+
+- **Claude CLI Integration**
+  - Fixed `--output-format stream-json` flag compatibility by adding required `--verbose` flag
+  - Updated default model from claude-sonnet-4-5-20250514 to claude-sonnet-4-5-20250929
+
+- **API Key Mount**
+  - Fixed Claude Code config mount from `~/.config/claude-code` to `~/.claude` (actual location)
+  - Changed mount target from `/home/dev/.claude` to `/home/node/.claude` for node:22 image
+  - Made mount read-write (was read-only, Claude needs to write debug logs)
+
+- **Container Execution**
+  - Added `--user node` to all docker exec commands for proper permissions
+  - Fixed file permissions for node user in container
+
+- **Docker Desktop Visibility**
+  - Added log streaming to Docker Desktop via tee to `/tmp/tanuki.log`
+  - Background tail process streams logs to container stdout for visibility
+  - Logs now visible in Docker Desktop container view
+
 ## [0.4.0] - 2026-01-13
 
 ### Added
@@ -177,16 +204,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tanuki merge` - Merge agent work with `--squash` and `--pr` options (TANK-016)
   - `tanuki status` - Detailed agent status with resource usage (TANK-017)
 
-- **Docker Image** (TANK-018)
-  - Ubuntu 24.04 base with Node.js 22, Python 3
-  - Claude Code pre-installed
-  - Development tools: git, gh, ripgrep, fd, fzf, vim, neovim
-
 ### Infrastructure
 
 - Makefile with build, test, lint, and install targets
 - GoReleaser configuration for multi-platform releases
-- Multi-platform Docker image build scripts (amd64/arm64)
 
 [Unreleased]: https://github.com/bkonkle/tanuki/compare/v0.4.0...HEAD
 [0.4.0]: https://github.com/bkonkle/tanuki/compare/v0.3.0...v0.4.0
