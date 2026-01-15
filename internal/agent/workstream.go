@@ -38,10 +38,11 @@ type WorkstreamRunner struct {
 	config WorkstreamConfig
 
 	// Event callbacks
-	onTaskStart    func(taskID string)
-	onTaskComplete func(taskID string)
-	onTaskFailed   func(taskID string, err error)
-	onBlocked      func(taskID string, blockers []string)
+	onTaskStart          func(taskID string)
+	onTaskComplete       func(taskID string)
+	onTaskFailed         func(taskID string, err error)
+	onBlocked            func(taskID string, blockers []string)
+	onWorkstreamComplete func(role, workstream string)
 
 	// Output writer for task execution
 	output io.Writer
@@ -140,6 +141,11 @@ func (r *WorkstreamRunner) SetOnBlocked(fn func(taskID string, blockers []string
 	r.onBlocked = fn
 }
 
+// SetOnWorkstreamComplete sets the callback for workstream completion events.
+func (r *WorkstreamRunner) SetOnWorkstreamComplete(fn func(role, workstream string)) {
+	r.onWorkstreamComplete = fn
+}
+
 // Run executes all tasks in the workstream sequentially.
 // Returns when all tasks are complete or an unrecoverable error occurs.
 func (r *WorkstreamRunner) Run() error {
@@ -152,6 +158,9 @@ func (r *WorkstreamRunner) Run() error {
 		if err != nil {
 			if errors.Is(err, errNoMoreTasks) {
 				log.Printf("Workstream %s complete: no more tasks", r.agentName)
+				if r.onWorkstreamComplete != nil {
+					r.onWorkstreamComplete(r.role, r.workstream)
+				}
 				return nil
 			}
 			return fmt.Errorf("get next task: %w", err)

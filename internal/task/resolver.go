@@ -299,3 +299,60 @@ func (r *Resolver) HasTask(id string) bool {
 func (r *Resolver) TaskCount() int {
 	return len(r.tasks)
 }
+
+// GetReadyTasksForWorkstream returns unblocked tasks for a specific workstream.
+func (r *Resolver) GetReadyTasksForWorkstream(workstream string) []*Task {
+	var ready []*Task
+
+	for _, t := range r.tasks {
+		if t.GetWorkstream() != workstream {
+			continue
+		}
+		if t.Status != StatusPending {
+			continue
+		}
+		if r.isReady(t) {
+			ready = append(ready, t)
+		}
+	}
+
+	return ready
+}
+
+// GetWorkstreamDependencies returns cross-workstream dependencies.
+// Returns a map of workstream -> workstreams it depends on.
+func (r *Resolver) GetWorkstreamDependencies() map[string][]string {
+	// Group tasks by workstream
+	wsMap := make(map[string][]*Task)
+	for _, t := range r.tasks {
+		ws := t.GetWorkstream()
+		wsMap[ws] = append(wsMap[ws], t)
+	}
+
+	// Build workstream dependency graph
+	deps := make(map[string][]string)
+
+	for ws, wsTasks := range wsMap {
+		depsSet := make(map[string]bool)
+
+		for _, t := range wsTasks {
+			for _, depID := range t.DependsOn {
+				depTask, ok := r.tasks[depID]
+				if !ok {
+					continue
+				}
+
+				depWS := depTask.GetWorkstream()
+				if depWS != ws {
+					depsSet[depWS] = true
+				}
+			}
+		}
+
+		for depWS := range depsSet {
+			deps[ws] = append(deps[ws], depWS)
+		}
+	}
+
+	return deps
+}

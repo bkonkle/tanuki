@@ -14,6 +14,7 @@ type taskFrontMatter struct {
 	ID         string            `yaml:"id"`
 	Title      string            `yaml:"title"`
 	Role       string            `yaml:"role"`
+	Workstream string            `yaml:"workstream,omitempty"`
 	Priority   Priority          `yaml:"priority,omitempty"`
 	Status     Status            `yaml:"status,omitempty"`
 	DependsOn  []string          `yaml:"depends_on,omitempty"`
@@ -37,6 +38,7 @@ func WriteFile(t *Task) error {
 		ID:         t.ID,
 		Title:      t.Title,
 		Role:       t.Role,
+		Workstream: t.Workstream,
 		Priority:   t.Priority,
 		Status:     t.Status,
 		DependsOn:  t.DependsOn,
@@ -73,6 +75,7 @@ func Serialize(t *Task) (string, error) {
 		ID:         t.ID,
 		Title:      t.Title,
 		Role:       t.Role,
+		Workstream: t.Workstream,
 		Priority:   t.Priority,
 		Status:     t.Status,
 		DependsOn:  t.DependsOn,

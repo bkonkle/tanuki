@@ -145,87 +145,118 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create agent manager: %w", err)
 	}
 
-	// Create workstream orchestrator
+	// Create readiness-aware scheduler (prevents deadlocks)
+	scheduler := project.NewReadinessAwareScheduler(taskMgr)
+
+	// Set role concurrency limits (default to 1 per role)
+	for role := range roles {
+		scheduler.SetRoleConcurrency(role, 1)
+	}
+
+	// Initialize scheduler - analyzes dependencies and builds readiness graph
+	if err := scheduler.Initialize(); err != nil {
+		return fmt.Errorf("initialize scheduler: %w", err)
+	}
+
+	// Check for potential deadlocks before starting
+	if deadlock := scheduler.DetectPotentialDeadlock(); deadlock != nil {
+		fmt.Println("Warning: Potential deadlock detected:")
+		for role, blockedBy := range deadlock.BlockedBy {
+			fmt.Printf("  Role %s waiting on: %v\n", role, blockedBy)
+		}
+		fmt.Printf("  %s\n", deadlock.Suggestion)
+		fmt.Println()
+	}
+
+	// Create workstream orchestrator for agent spawning
 	wsConfig := agent.DefaultWorkstreamConfig()
 	orchestrator := agent.NewWorkstreamOrchestrator(agentMgr, taskMgr, wsConfig)
 
-	// Set role concurrency limits (default to 1 per role)
-	for key := range workstreams {
-		orchestrator.SetRoleConcurrency(key.role, 1)
-	}
-
-	// Spawn agents for each workstream
-	fmt.Println("Spawning agents...")
+	// Spawn agents only for ready workstreams (those with unblocked tasks)
+	fmt.Println("Spawning agents for ready workstreams...")
 	runners := make(map[workstreamKey]*agent.WorkstreamRunner)
+	spawnedRoles := make(map[string]bool)
 
-	for key := range workstreams {
-		agentName := buildAgentName(key.project, key.workstream)
+	for role := range roles {
+		ws := scheduler.GetNextWorkstream(role)
+		if ws == nil {
+			blockedWS := scheduler.GetBlockedWorkstreams(role)
+			if len(blockedWS) > 0 {
+				fmt.Printf("  Role %s: all %d workstream(s) blocked by dependencies\n", role, len(blockedWS))
+			}
+			continue
+		}
 
-		fmt.Printf("  Spawning %s (role: %s)...\n", agentName, key.role)
+		agentName := buildAgentName(ws.Project, ws.Workstream)
+		key := workstreamKey{project: ws.Project, role: ws.Role, workstream: ws.Workstream}
+
+		fmt.Printf("  Spawning %s (role: %s, ready tasks: %d)...\n", agentName, ws.Role, ws.ReadyTaskCount)
 
 		start := time.Now()
-		runner, err := orchestrator.StartWorkstream(key.project, key.role, key.workstream)
+		runner, runErr := orchestrator.StartWorkstream(ws.Project, ws.Role, ws.Workstream)
 		elapsed := time.Since(start)
 
-		if err != nil {
-			fmt.Printf("    Failed: %v\n", err)
+		if runErr != nil {
+			fmt.Printf("    Failed: %v\n", runErr)
 			continue
 		}
 
 		runners[key] = runner
+		scheduler.ActivateWorkstream(ws.Role, ws.Workstream)
+		spawnedRoles[ws.Role] = true
 		fmt.Printf("    Created (%.1fs)\n", elapsed.Seconds())
+
+		// Set up completion callbacks for dynamic rebalancing
+		runner.SetOnTaskComplete(func(taskID string) {
+			scheduler.OnTaskComplete(taskID)
+		})
+
+		runner.SetOnWorkstreamComplete(func(completedRole, completedWS string) {
+			scheduler.OnWorkstreamComplete(completedRole, completedWS)
+			orchestrator.ReleaseWorkstream(completedRole)
+
+			// Check if another workstream is now ready
+			nextWS := scheduler.GetNextWorkstream(completedRole)
+			if nextWS != nil {
+				// Spawn a new runner for the next ready workstream
+				nextAgentName := buildAgentName(nextWS.Project, nextWS.Workstream)
+				log.Printf("Starting next ready workstream: %s (role: %s)", nextAgentName, nextWS.Role)
+
+				nextRunner, nextErr := orchestrator.StartWorkstream(nextWS.Project, nextWS.Role, nextWS.Workstream)
+				if nextErr != nil {
+					log.Printf("Failed to start next workstream %s: %v", nextAgentName, nextErr)
+					return
+				}
+
+				scheduler.ActivateWorkstream(nextWS.Role, nextWS.Workstream)
+
+				// Set up callbacks for the new runner
+				nextRunner.SetOnTaskComplete(func(taskID string) {
+					scheduler.OnTaskComplete(taskID)
+				})
+
+				// Run the new workstream
+				go func() {
+					if runErr := nextRunner.Run(); runErr != nil {
+						log.Printf("Workstream %s failed: %v", nextAgentName, runErr)
+					}
+				}()
+			}
+		})
 	}
 	fmt.Println()
 
-	// Assign tasks to idle agents
-	fmt.Println("Assigning tasks...")
-	assigned := 0
-
-	for key := range workstreams {
-		// Get tasks for this workstream
-		var wsTasks []*task.Task
-		if key.project != "" {
-			wsTasks = taskMgr.GetByProjectAndWorkstream(key.project, key.role, key.workstream)
-		} else {
-			wsTasks = taskMgr.GetByRoleAndWorkstream(key.role, key.workstream)
-		}
-
-		for _, t := range wsTasks {
-			if t.Status != task.StatusPending {
-				continue
+	// Show summary of blocked workstreams
+	for role := range roles {
+		if !spawnedRoles[role] {
+			blocked := scheduler.GetBlockedWorkstreams(role)
+			for _, ws := range blocked {
+				fmt.Printf("  %s:%s blocked by workstreams: %v\n", ws.Role, ws.Workstream, ws.BlockingWorkstreams)
 			}
-
-			// Check dependencies
-			blocked, _ := taskMgr.IsBlocked(t.ID)
-			if blocked {
-				fmt.Printf("  %s blocked (waiting on dependencies)\n", t.ID)
-				_ = taskMgr.UpdateStatus(t.ID, task.StatusBlocked)
-				continue
-			}
-
-			agentName := buildAgentName(key.project, key.workstream)
-			fmt.Printf("  %s -> %s\n", t.ID, agentName)
-
-			// Update task status
-			_ = taskMgr.Assign(t.ID, agentName)
-			assigned++
-
-			// Build prompt and start task (placeholder)
-			// prompt := buildTaskPrompt(t)
-			// go agentMgr.Run(agentName, prompt, agent.RunOptions{})
-
-			// Only assign first pending task per workstream
-			break
 		}
 	}
 
-	if assigned == 0 {
-		fmt.Println("  No tasks assigned (all agents busy or no matching tasks)")
-	}
-
-	fmt.Println()
-
-	// Start the workstream runners and wait for completion
+	// Start the workstream runners in background goroutines
 	if len(runners) > 0 {
 		fmt.Printf("Starting %d workstream runner(s)...\n", len(runners))
 		fmt.Println()
@@ -233,11 +264,11 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		var wg sync.WaitGroup
 		for key, runner := range runners {
 			wg.Add(1)
-			go func(k workstreamKey, r *agent.WorkstreamRunner) {
-				defer wg.Done()
-				if err := r.Run(); err != nil {
-					log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
-				}
+		go func(k workstreamKey, r *agent.WorkstreamRunner) {
+			defer wg.Done()
+			if err := r.Run(); err != nil {
+				log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
+			}
 			}(key, runner)
 		}
 
