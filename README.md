@@ -387,9 +387,35 @@ services:
       retries: 5
 ```
 
+**When to use Tanuki shared services:**
+
+Tanuki shared services are designed for **agent-specific infrastructure** - databases, caches, or tools that agents need during development but that aren't part of your main application infrastructure.
+
+✅ **Use Tanuki services for:**
+- Scratch databases where agents can test queries or schema changes
+- Redis caches for agent coordination or temporary data
+- Agent-specific tooling (message queues, search engines, etc.)
+
+❌ **Don't use Tanuki services for:**
+- Project infrastructure already managed by docker-compose (LocalStack, app databases, etc.)
+- Services your actual application needs to run
+- Persistent production-like environments
+
+**Recommended approach for existing project infrastructure:**
+
+If you already have services running via docker-compose (LocalStack, databases, etc.), configure Tanuki to use the same network instead of duplicating them:
+
+```yaml
+# tanuki.yaml - Use existing infrastructure
+network:
+  name: my-project_default  # Match your docker-compose network
+```
+
+See [Network Connectivity](#network-connectivity) below for details.
+
 ### Service Injection
 
-When services are running, agents automatically receive connection environment variables:
+When Tanuki services are running, agents automatically receive connection environment variables:
 
 ```bash
 POSTGRES_HOST=tanuki-svc-postgres

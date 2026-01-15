@@ -34,12 +34,19 @@ type AgentInfo struct {
 
 // TaskInfo represents task information for display.
 type TaskInfo struct {
-	ID         string
-	Title      string
-	Status     string
-	Role       string
-	AssignedTo string
-	Priority   string
+	ID              string
+	Title           string
+	Status          string
+	Role            string
+	AssignedTo      string
+	Priority        string
+	FailureMessage  string
+	LogFilePath     string
+	ValidationLog   string
+	DependsOn       []string
+	StartedAt       *time.Time
+	CompletedAt     *time.Time
+	ErrorPreview    string // Truncated error for list display
 }
 
 // LogLine represents a log entry.
@@ -203,6 +210,9 @@ type Model struct {
 
 	// Refresh interval
 	refreshInterval time.Duration
+
+	// Project root for log file paths
+	projectRoot string
 }
 
 // NewModel creates a new dashboard model.
@@ -222,6 +232,11 @@ func NewModel(agentProvider AgentProvider, taskProvider TaskProvider) Model {
 		logCheckTicker:  100 * time.Millisecond,
 		refreshInterval: time.Second,
 	}
+}
+
+// SetProjectRoot sets the project root path for resolving log files.
+func (m *Model) SetProjectRoot(projectRoot string) {
+	m.projectRoot = projectRoot
 }
 
 // tickMsg is sent on each refresh interval.
@@ -339,9 +354,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// If modal is open, don't process other keys except Esc
-		if m.showTaskDetails {
-			return m, nil
+		// If modal is open, pass keys to modal for tab navigation and scrolling
+		if m.showTaskDetails && m.taskDetailsModal != nil {
+			cmd := m.taskDetailsModal.Update(msg)
+			return m, cmd
 		}
 
 		// Clear any error/status messages on key press
@@ -438,7 +454,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				filteredTasks := m.filteredTasks()
 				if m.taskCursor < len(filteredTasks) {
 					task := filteredTasks[m.taskCursor]
-					m.taskDetailsModal = NewTaskDetailsModal(task, m.width, m.height)
+					m.taskDetailsModal = NewTaskDetailsModal(task, m.projectRoot, m.width, m.height)
 					m.showTaskDetails = true
 				}
 			}
@@ -844,6 +860,16 @@ func (m Model) renderTaskPane(width, height int) string {
 		}
 		sb.WriteString(line)
 		sb.WriteString("\n")
+
+		// Show error preview for failed tasks
+		if task.Status == "failed" && task.ErrorPreview != "" {
+			errorStyle := lipgloss.NewStyle().
+				Foreground(ColorError).
+				Italic(true)
+			errorLine := fmt.Sprintf("    ↳ %s", task.ErrorPreview)
+			sb.WriteString(errorStyle.Render(errorLine))
+			sb.WriteString("\n")
+		}
 	}
 
 	return sb.String()

@@ -14,6 +14,12 @@ system_prompt: |
   - Accessibility (a11y) compliance
   - Performance optimization
 
+  **Shared Resources:**
+  - External resources (e.g., Localstack, mock APIs, test databases) are shared across all agents
+  - Use idempotent naming for cache keys, localStorage items, and API mock data
+  - Include unique identifiers (agent ID, test name, UUID) in resource names to avoid collisions
+  - Clean up temporary resources when done to prevent interference with other agents
+
   **Best Practices:**
   - Write component tests (unit + integration)
   - Follow component composition patterns

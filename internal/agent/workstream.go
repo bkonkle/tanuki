@@ -175,9 +175,10 @@ func (r *WorkstreamRunner) Run() error {
 
 		// Execute the task
 		if err := r.executeTask(nextTask); err != nil {
-			// Mark task as failed
-			if updateErr := r.taskMgr.UpdateStatus(nextTask.ID, task.StatusFailed); updateErr != nil {
-				log.Printf("Warning: failed to update task status: %v", updateErr)
+			// Mark task as failed and save error message
+			// Log path will be empty for now - needs to be integrated at agent manager level
+			if updateErr := r.taskMgr.UpdateFailure(nextTask.ID, err, ""); updateErr != nil {
+				log.Printf("Warning: failed to update task failure: %v", updateErr)
 			}
 
 			if r.onTaskFailed != nil {

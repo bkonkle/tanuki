@@ -10,27 +10,35 @@ import (
 
 // Validator checks if task completion criteria are met.
 type Validator struct {
-	workdir string
-	timeout time.Duration
+	workdir    string
+	timeout    time.Duration
+	logWriter  *LogWriter
+	projectRoot string
 }
 
 // NewValidator creates a new task validator.
 func NewValidator(workdir string) *Validator {
+	// Create log writer (ignore error, will be nil if it fails)
+	logWriter, _ := NewLogWriter(workdir)
+
 	return &Validator{
-		workdir: workdir,
-		timeout: 5 * time.Minute,
+		workdir:     workdir,
+		timeout:     5 * time.Minute,
+		logWriter:   logWriter,
+		projectRoot: workdir,
 	}
 }
 
 // ValidationResult contains the outcome of a validation check.
 type ValidationResult struct {
-	Task         *Task
-	SignalFound  bool
-	VerifyPassed bool
-	VerifyOutput string
-	VerifyError  error
-	Status       Status // complete, review, failed, in_progress
-	Message      string
+	Task            *Task
+	SignalFound     bool
+	VerifyPassed    bool
+	VerifyOutput    string
+	VerifyError     error
+	Status          Status // complete, review, failed, in_progress
+	Message         string
+	ValidationLog   string // Path to validation log file
 }
 
 // Validate checks if task completion criteria are met.
@@ -62,6 +70,16 @@ func (v *Validator) Validate(ctx context.Context, t *Task, agentOutput string) *
 		result.VerifyPassed = passed
 		result.VerifyOutput = output
 		result.VerifyError = err
+
+		// Save validation output to log file
+		if v.logWriter != nil && output != "" {
+			validationFile, validationPath, logErr := v.logWriter.CreateValidationLogFile(t.ID)
+			if logErr == nil {
+				validationFile.WriteString(output)
+				validationFile.Close()
+				result.ValidationLog = validationPath
+			}
+		}
 
 		if err != nil {
 			result.Status = StatusFailed

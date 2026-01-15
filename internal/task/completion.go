@@ -19,6 +19,7 @@ type CompletionHandler struct {
 type ManagerInterface interface {
 	Get(id string) (*Task, error)
 	UpdateStatus(id string, status Status) error
+	Update(task *Task) error
 	Unassign(id string) error
 }
 
@@ -44,6 +45,14 @@ func (h *CompletionHandler) HandleAgentOutput(ctx context.Context, taskID, agent
 	// Update task status
 	if err := h.taskMgr.UpdateStatus(taskID, result.Status); err != nil {
 		return fmt.Errorf("update status: %w", err)
+	}
+
+	// Save validation log path if available
+	if result.ValidationLog != "" {
+		t.ValidationLog = result.ValidationLog
+		if err := h.taskMgr.Update(t); err != nil {
+			log.Printf("Warning: failed to save validation log path: %v", err)
+		}
 	}
 
 	// Emit event

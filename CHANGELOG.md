@@ -14,7 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Examples for connecting containers to tanuki-net network
   - Network inspection commands for troubleshooting
 
+- **Shared Services Guidance** - Clarified when to use Tanuki services vs project infrastructure
+  - Documented that Tanuki services are for agent-specific tooling (scratch DBs, coordination caches)
+  - Explained that project infrastructure (LocalStack, app databases) should stay in docker-compose
+  - Recommended network configuration approach for accessing existing services
+  - Added clear use-case examples and anti-patterns
+
 ### Changed
+
+- **Builtin Role System Prompts** - Added shared resources guidance
+  - Documents that external resources (Localstack, databases, caches) are shared across agents
+  - Instructs agents to use idempotent naming with unique identifiers to avoid collisions
+  - Emphasizes cleanup of temporary resources to prevent interference
+  - Applied consistently across all six builtin roles (backend, frontend, qa, docs, devops, fullstack)
 
 - **Default Model** - Changed default Claude model to Haiku 4.5 (claude-haiku-4-5-20251001)
   - Faster execution and lower cost for typical agent tasks
