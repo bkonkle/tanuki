@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Default Model** - Changed default Claude model to Haiku 4.5 (claude-haiku-4-5-20250107)
+- **Default Model** - Changed default Claude model to Haiku 4.5 (claude-haiku-4-5-20251001)
   - Faster execution and lower cost for typical agent tasks
+  - Near-frontier intelligence at 3x lower cost than Sonnet 4.5
   - Users can override in tanuki.yaml or per-role configuration
 
 - **Container Runtime** - Switched from custom bkonkle/tanuki image to node:22

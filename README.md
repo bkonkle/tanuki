@@ -341,7 +341,7 @@ worktrees:
 
 defaults:
   max_turns: 50
-  model: claude-haiku-4-5-20250107
+  model: claude-haiku-4-5-20251001
 
 roles:
   backend:
