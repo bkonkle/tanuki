@@ -92,7 +92,7 @@ func (r *RoleConfig) GetConcurrency() int {
 // ImageConfig specifies which Docker image to use for agents.
 // Either Name+Tag or Build should be specified, not both.
 type ImageConfig struct {
-	// Name is the Docker image name (e.g., "bkonkle/tanuki")
+	// Name is the Docker image name (e.g., "node")
 	Name string `yaml:"name" mapstructure:"name" validate:"required_without=Build"`
 
 	// Tag is the Docker image tag (e.g., "latest", "v1.0.0")
@@ -480,7 +480,7 @@ func DefaultConfig() *Config {
 				"Grep",
 			},
 			MaxTurns: 50,
-			Model:    "claude-sonnet-4-5-20250929",
+			Model:    "claude-haiku-4-5-20250107",
 			Resources: ResourceConfig{
 				Memory: "4g",
 				CPUs:   "2",

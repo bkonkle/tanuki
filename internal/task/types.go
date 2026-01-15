@@ -31,6 +31,11 @@ type Task struct {
 	Project     string     `yaml:"-"` // Project folder name (derived from directory)
 	CompletedAt *time.Time `yaml:"completed_at,omitempty"`
 	StartedAt   *time.Time `yaml:"started_at,omitempty"`
+
+	// Error and log tracking
+	FailureMessage string `yaml:"failure_message,omitempty"` // Human-readable error
+	LogFilePath    string `yaml:"log_file,omitempty"`        // Path to execution log
+	ValidationLog  string `yaml:"validation_log,omitempty"`  // Validation output path
 }
 
 // GetWorkstream returns the workstream identifier for this task.

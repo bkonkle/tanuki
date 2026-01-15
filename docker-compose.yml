@@ -1,19 +1,11 @@
 services:
   tanuki:
-    build:
-      context: .
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-ubuntu:25.10}
-        DEV_USER: ${DEV_USER:-brandon}
-    image: bkonkle/tanuki:latest
+    image: node:22
     container_name: ${TANUKI_HOSTNAME:-tanuki}
     restart: unless-stopped
     volumes:
-      - apt-cache:/var/cache/apt/archives
-      - apt-lists:/var/lib/apt/lists
-      - ssh:/etc/ssh
-      - home:/home/${DEV_USER:-brandon}
-      - ${HOME}/.config/claude-code:/home/${DEV_USER:-brandon}/.config/claude-code:ro
+      - home:/home/node
+      - ${HOME}/.claude:/home/node/.claude
     environment:
       TZ: ${TZ:-America/Denver}
       DEV_USER: ${DEV_USER:-brandon}
@@ -42,8 +34,5 @@ services:
       - sys_module
 
 volumes:
-  apt-cache:
-  apt-lists:
-  ssh:
   home:
   tailscale-tanuki:

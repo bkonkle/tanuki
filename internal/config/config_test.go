@@ -438,8 +438,8 @@ func TestServiceConfiguration(t *testing.T) {
 	// Config with services
 	serviceConfig := `version: "1"
 image:
-  name: "bkonkle/tanuki"
-  tag: "latest"
+  name: "node"
+  tag: "22"
 defaults:
   allowed_tools:
     - Read

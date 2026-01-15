@@ -21,6 +21,11 @@ type taskFrontMatter struct {
 	AssignedTo string            `yaml:"assigned_to,omitempty"`
 	Completion *CompletionConfig `yaml:"completion,omitempty"`
 	Tags       []string          `yaml:"tags,omitempty"`
+
+	// Error and log tracking
+	FailureMessage string `yaml:"failure_message,omitempty"`
+	LogFilePath    string `yaml:"log_file,omitempty"`
+	ValidationLog  string `yaml:"validation_log,omitempty"`
 }
 
 // WriteFile writes task back to file, preserving markdown content.
@@ -35,16 +40,19 @@ func WriteFile(t *Task) error {
 
 	// Create front matter struct with only serializable fields
 	fm := taskFrontMatter{
-		ID:         t.ID,
-		Title:      t.Title,
-		Role:       t.Role,
-		Workstream: t.Workstream,
-		Priority:   t.Priority,
-		Status:     t.Status,
-		DependsOn:  t.DependsOn,
-		AssignedTo: t.AssignedTo,
-		Completion: t.Completion,
-		Tags:       t.Tags,
+		ID:             t.ID,
+		Title:          t.Title,
+		Role:           t.Role,
+		Workstream:     t.Workstream,
+		Priority:       t.Priority,
+		Status:         t.Status,
+		DependsOn:      t.DependsOn,
+		AssignedTo:     t.AssignedTo,
+		Completion:     t.Completion,
+		Tags:           t.Tags,
+		FailureMessage: t.FailureMessage,
+		LogFilePath:    t.LogFilePath,
+		ValidationLog:  t.ValidationLog,
 	}
 
 	// Marshal front matter with proper YAML formatting
@@ -72,16 +80,19 @@ func Serialize(t *Task) (string, error) {
 
 	// Create front matter struct with only serializable fields
 	fm := taskFrontMatter{
-		ID:         t.ID,
-		Title:      t.Title,
-		Role:       t.Role,
-		Workstream: t.Workstream,
-		Priority:   t.Priority,
-		Status:     t.Status,
-		DependsOn:  t.DependsOn,
-		AssignedTo: t.AssignedTo,
-		Completion: t.Completion,
-		Tags:       t.Tags,
+		ID:             t.ID,
+		Title:          t.Title,
+		Role:           t.Role,
+		Workstream:     t.Workstream,
+		Priority:       t.Priority,
+		Status:         t.Status,
+		DependsOn:      t.DependsOn,
+		AssignedTo:     t.AssignedTo,
+		Completion:     t.Completion,
+		Tags:           t.Tags,
+		FailureMessage: t.FailureMessage,
+		LogFilePath:    t.LogFilePath,
+		ValidationLog:  t.ValidationLog,
 	}
 
 	// Marshal front matter with proper YAML formatting
