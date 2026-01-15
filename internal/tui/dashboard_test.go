@@ -511,7 +511,7 @@ func TestModel_CloseTaskDetails(t *testing.T) {
 	model.showTaskDetails = true
 	model.taskDetailsModal = NewTaskDetailsModal(
 		&TaskInfo{ID: "TASK-001", Title: "Test"},
-		100, 40)
+		"", 100, 40)
 
 	// Press Esc to close modal
 	newModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})

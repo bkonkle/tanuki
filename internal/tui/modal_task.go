@@ -189,7 +189,7 @@ func (m *TaskDetailsModal) renderDetails() string {
 
 	// Dependencies
 	if len(m.task.DependsOn) > 0 {
-		sb.WriteString(fmt.Sprintf("Dependencies:\n"))
+		sb.WriteString("Dependencies:\n")
 		for _, dep := range m.task.DependsOn {
 			sb.WriteString(fmt.Sprintf("  • %s\n", dep))
 		}

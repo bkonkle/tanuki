@@ -13,7 +13,7 @@ func TestNewTaskDetailsModal(t *testing.T) {
 		Role:   "backend",
 	}
 
-	modal := NewTaskDetailsModal(task, 100, 40)
+	modal := NewTaskDetailsModal(task, "", 100, 40)
 
 	if modal.task != task {
 		t.Error("expected task to be set")
@@ -49,7 +49,7 @@ func TestTaskDetailsModal_View_WithTask(t *testing.T) {
 		AssignedTo: "agent-1",
 	}
 
-	modal := NewTaskDetailsModal(task, 100, 40)
+	modal := NewTaskDetailsModal(task, "", 100, 40)
 	view := modal.View()
 
 	// Should contain task ID
@@ -96,7 +96,7 @@ func TestTaskDetailsModal_View_NoAssignment(t *testing.T) {
 		Role:   "frontend",
 	}
 
-	modal := NewTaskDetailsModal(task, 100, 40)
+	modal := NewTaskDetailsModal(task, "", 100, 40)
 	view := modal.View()
 
 	// Should indicate no assignment
