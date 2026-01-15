@@ -65,7 +65,7 @@ func (r *TaskLogReader) GetLastN(n int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read all lines into a buffer
 	var lines []string
@@ -106,7 +106,7 @@ func (r *TaskLogReader) GetLineCount() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Count lines
 	count := 0
@@ -141,7 +141,7 @@ func (r *TaskLogReader) GetFilePath() string {
 // getFullPath returns the absolute path to the log file.
 func (r *TaskLogReader) getFullPath() string {
 	if filepath.IsAbs(r.logFilePath) {
-		return r.logFilePath
+		return filepath.Clean(r.logFilePath)
 	}
-	return filepath.Join(r.projectRoot, r.logFilePath)
+	return filepath.Clean(filepath.Join(r.projectRoot, r.logFilePath))
 }

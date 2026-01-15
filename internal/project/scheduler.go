@@ -345,7 +345,7 @@ func (s *ReadinessAwareScheduler) ReleaseWorkstream(role, workstream string) {
 
 // OnTaskComplete is called when a task finishes execution.
 // It triggers re-evaluation of blocked workstreams and may make new workstreams ready.
-func (s *ReadinessAwareScheduler) OnTaskComplete(taskID string) {
+func (s *ReadinessAwareScheduler) OnTaskComplete(_ string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

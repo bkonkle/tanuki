@@ -113,7 +113,7 @@ func (m *TabsModel) renderTabBar() string {
 		return ""
 	}
 
-	var renderedTabs []string
+	renderedTabs := make([]string, 0, len(m.tabs))
 
 	for i, tab := range m.tabs {
 		var style lipgloss.Style

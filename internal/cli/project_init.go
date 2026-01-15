@@ -25,7 +25,7 @@ document incremental decisions and specifications over time.
 
 The tasks directory location is configurable via tasks_dir in tanuki.yaml
 (defaults to "tasks").`,
-	Args: func(cmd *cobra.Command, args []string) error {
+	Args: func(_ *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			return fmt.Errorf("project name required\n\nUsage: tanuki project init <name>\n\nExample: tanuki project init auth-feature")
 		}

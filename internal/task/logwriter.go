@@ -25,7 +25,7 @@ func NewLogWriter(projectRoot string) (*LogWriter, error) {
 	logDir := filepath.Join(projectRoot, ".tanuki", LogsDir)
 
 	// Ensure log directory exists
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0750); err != nil {
 		return nil, fmt.Errorf("create log directory: %w", err)
 	}
 

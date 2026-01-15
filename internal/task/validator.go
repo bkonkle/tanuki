@@ -10,9 +10,9 @@ import (
 
 // Validator checks if task completion criteria are met.
 type Validator struct {
-	workdir    string
-	timeout    time.Duration
-	logWriter  *LogWriter
+	workdir     string
+	timeout     time.Duration
+	logWriter   *LogWriter
 	projectRoot string
 }
 
@@ -31,14 +31,14 @@ func NewValidator(workdir string) *Validator {
 
 // ValidationResult contains the outcome of a validation check.
 type ValidationResult struct {
-	Task            *Task
-	SignalFound     bool
-	VerifyPassed    bool
-	VerifyOutput    string
-	VerifyError     error
-	Status          Status // complete, review, failed, in_progress
-	Message         string
-	ValidationLog   string // Path to validation log file
+	Task          *Task
+	SignalFound   bool
+	VerifyPassed  bool
+	VerifyOutput  string
+	VerifyError   error
+	Status        Status // complete, review, failed, in_progress
+	Message       string
+	ValidationLog string // Path to validation log file
 }
 
 // Validate checks if task completion criteria are met.
@@ -75,8 +75,8 @@ func (v *Validator) Validate(ctx context.Context, t *Task, agentOutput string) *
 		if v.logWriter != nil && output != "" {
 			validationFile, validationPath, logErr := v.logWriter.CreateValidationLogFile(t.ID)
 			if logErr == nil {
-				validationFile.WriteString(output)
-				validationFile.Close()
+				_, _ = validationFile.WriteString(output)
+				_ = validationFile.Close()
 				result.ValidationLog = validationPath
 			}
 		}

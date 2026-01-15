@@ -95,9 +95,9 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	// Reconcile stale assignments from previous runs
 	// Pass nil to reset all assigned/in_progress tasks since we're starting fresh
 	if !dryRun {
-		resetCount, err := taskMgr.ReconcileStaleAssignments(nil)
-		if err != nil {
-			return fmt.Errorf("reconcile stale assignments: %w", err)
+		resetCount, reconcileErr := taskMgr.ReconcileStaleAssignments(nil)
+		if reconcileErr != nil {
+			return fmt.Errorf("reconcile stale assignments: %w", reconcileErr)
 		}
 		if resetCount > 0 {
 			fmt.Printf("  Reset %d stale task assignment(s) to pending\n", resetCount)
@@ -158,8 +158,8 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// Reconcile agent state with actual containers
-	if err := agentMgr.Reconcile(); err != nil {
-		return fmt.Errorf("reconcile agents: %w", err)
+	if reconcileErr := agentMgr.Reconcile(); reconcileErr != nil {
+		return fmt.Errorf("reconcile agents: %w", reconcileErr)
 	}
 
 	// Remove agents that are in error state (stale containers)
@@ -300,11 +300,11 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		var wg sync.WaitGroup
 		for key, runner := range runners {
 			wg.Add(1)
-		go func(k workstreamKey, r *agent.WorkstreamRunner) {
-			defer wg.Done()
-			if err := r.Run(); err != nil {
-				log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
-			}
+			go func(k workstreamKey, r *agent.WorkstreamRunner) {
+				defer wg.Done()
+				if err := r.Run(); err != nil {
+					log.Printf("Workstream %s-%s failed: %v", k.project, k.workstream, err)
+				}
 			}(key, runner)
 		}
 

@@ -520,11 +520,6 @@ func TestWorkstreamReadiness_ReadinessScore(t *testing.T) {
 // replaceStatus replaces the status in a task file content.
 func replaceStatus(content, newStatus string) string {
 	// Simple replacement - find "status: pending" and replace with "status: complete"
-	lines := make([]byte, 0, len(content))
-	for _, line := range []byte(content) {
-		lines = append(lines, line)
-	}
-
 	result := ""
 	for _, line := range splitLines(content) {
 		if len(line) > 8 && line[:8] == "status: " {

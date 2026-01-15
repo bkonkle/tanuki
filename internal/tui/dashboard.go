@@ -34,19 +34,19 @@ type AgentInfo struct {
 
 // TaskInfo represents task information for display.
 type TaskInfo struct {
-	ID              string
-	Title           string
-	Status          string
-	Role            string
-	AssignedTo      string
-	Priority        string
-	FailureMessage  string
-	LogFilePath     string
-	ValidationLog   string
-	DependsOn       []string
-	StartedAt       *time.Time
-	CompletedAt     *time.Time
-	ErrorPreview    string // Truncated error for list display
+	ID             string
+	Title          string
+	Status         string
+	Role           string
+	AssignedTo     string
+	Priority       string
+	FailureMessage string
+	LogFilePath    string
+	ValidationLog  string
+	DependsOn      []string
+	StartedAt      *time.Time
+	CompletedAt    *time.Time
+	ErrorPreview   string // Truncated error for list display
 }
 
 // LogLine represents a log entry.
