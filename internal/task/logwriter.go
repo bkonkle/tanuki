@@ -42,7 +42,7 @@ func (w *LogWriter) CreateTaskLogFile(taskID string) (*os.File, string, error) {
 	filename := fmt.Sprintf("task-%s-%s.log", taskID, timestamp)
 	fullPath := filepath.Join(w.logDir, filename)
 
-	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // Path is constructed from trusted internal config
 	if err != nil {
 		return nil, "", fmt.Errorf("create task log file: %w", err)
 	}
@@ -59,7 +59,7 @@ func (w *LogWriter) CreateValidationLogFile(taskID string) (*os.File, string, er
 	filename := fmt.Sprintf("task-%s-%s-validate.log", taskID, timestamp)
 	fullPath := filepath.Join(w.logDir, filename)
 
-	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // Path is constructed from trusted internal config
 	if err != nil {
 		return nil, "", fmt.Errorf("create validation log file: %w", err)
 	}
