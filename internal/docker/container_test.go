@@ -22,12 +22,13 @@ func skipIfDockerNotRunning(t *testing.T) {
 }
 
 // createTestImage ensures a test image is available.
+// Uses node:22-alpine which has the 'node' user that the code expects.
 func createTestImage(t *testing.T) string {
 	t.Helper()
 	skipIfDockerNotRunning(t)
 
-	// Use alpine as a minimal test image
-	imageName := "alpine:latest"
+	// Use node:22-alpine which has the 'node' user that the exec functions require
+	imageName := "node:22-alpine"
 
 	// Check if image exists, if not pull it
 	cmd := exec.Command("docker", "image", "inspect", imageName)
