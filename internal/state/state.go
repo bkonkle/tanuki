@@ -71,8 +71,8 @@ type Agent struct {
 	// LastTask contains information about the last task executed
 	LastTask *TaskInfo `json:"last_task,omitempty"`
 
-	// Role is the assigned role name (if any)
-	Role string `json:"role,omitempty"`
+	// Workstream is the assigned workstream name (if any)
+	Workstream string `json:"workstream,omitempty"`
 
 	// AllowedTools is the list of tools this agent is allowed to use
 	AllowedTools []string `json:"allowed_tools,omitempty"`
@@ -109,9 +109,6 @@ type TaskInfo struct {
 type WorkstreamSession struct {
 	// Workstream identifier
 	Workstream string `json:"workstream"`
-
-	// Role this workstream belongs to
-	Role string `json:"role"`
 
 	// AgentName assigned to this session
 	AgentName string `json:"agent_name"`

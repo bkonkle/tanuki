@@ -8,11 +8,11 @@ import (
 func TestBalancer_AssignTask(t *testing.T) {
 	b := NewBalancer()
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
-		{Name: "be-2", Role: "backend", Status: "idle"},
-		{Name: "fe-1", Role: "frontend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
+		{Name: "api-2", Workstream: "api", Status: "idle"},
+		{Name: "web-1", Workstream: "web", Status: "idle"},
 	}
 
 	agent, err := b.AssignTask(task, agents)
@@ -21,8 +21,8 @@ func TestBalancer_AssignTask(t *testing.T) {
 		t.Fatalf("AssignTask() error: %v", err)
 	}
 
-	if agent.Role != "backend" {
-		t.Errorf("Selected agent role = %s, want backend", agent.Role)
+	if agent.Workstream != "api" {
+		t.Errorf("Selected agent workstream = %s, want api", agent.Workstream)
 	}
 }
 
@@ -30,7 +30,7 @@ func TestBalancer_AssignTaskNilTask(t *testing.T) {
 	b := NewBalancer()
 
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
 	}
 
 	_, err := b.AssignTask(nil, agents)
@@ -43,13 +43,13 @@ func TestBalancer_LeastLoaded(t *testing.T) {
 	b := NewBalancer()
 
 	// Pre-load one agent
-	b.TrackAssignment("be-1")
-	b.TrackAssignment("be-1")
+	b.TrackAssignment("api-1")
+	b.TrackAssignment("api-1")
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
-		{Name: "be-2", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
+		{Name: "api-2", Workstream: "api", Status: "idle"},
 	}
 
 	agent, err := b.AssignTask(task, agents)
@@ -58,19 +58,19 @@ func TestBalancer_LeastLoaded(t *testing.T) {
 		t.Fatalf("AssignTask() error: %v", err)
 	}
 
-	// Should select be-2 (less loaded)
-	if agent.Name != "be-2" {
-		t.Errorf("Selected %s, want be-2 (least loaded)", agent.Name)
+	// Should select api-2 (less loaded)
+	if agent.Name != "api-2" {
+		t.Errorf("Selected %s, want api-2 (least loaded)", agent.Name)
 	}
 }
 
 func TestBalancer_NoIdleAgents(t *testing.T) {
 	b := NewBalancer()
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "working"},
-		{Name: "be-2", Role: "backend", Status: "working"},
+		{Name: "api-1", Workstream: "api", Status: "working"},
+		{Name: "api-2", Workstream: "api", Status: "working"},
 	}
 
 	_, err := b.AssignTask(task, agents)
@@ -80,18 +80,18 @@ func TestBalancer_NoIdleAgents(t *testing.T) {
 	}
 }
 
-func TestBalancer_NoMatchingRole(t *testing.T) {
+func TestBalancer_NoMatchingWorkstream(t *testing.T) {
 	b := NewBalancer()
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "fe-1", Role: "frontend", Status: "idle"},
+		{Name: "web-1", Workstream: "web", Status: "idle"},
 	}
 
 	_, err := b.AssignTask(task, agents)
 
 	if err == nil {
-		t.Error("AssignTask() should error when no matching role")
+		t.Error("AssignTask() should error when no matching workstream")
 	}
 }
 
@@ -155,9 +155,9 @@ func TestBalancer_GetIdleAgents(t *testing.T) {
 	b := NewBalancer()
 
 	agents := []*Agent{
-		{Name: "a1", Role: "backend", Status: "idle"},
-		{Name: "a2", Role: "backend", Status: "working"},
-		{Name: "a3", Role: "frontend", Status: "idle"},
+		{Name: "a1", Workstream: "api", Status: "idle"},
+		{Name: "a2", Workstream: "api", Status: "working"},
+		{Name: "a3", Workstream: "web", Status: "idle"},
 	}
 
 	// All idle
@@ -166,84 +166,84 @@ func TestBalancer_GetIdleAgents(t *testing.T) {
 		t.Errorf("GetIdleAgents('') = %d, want 2", len(idle))
 	}
 
-	// Idle backend only
-	idleBackend := b.GetIdleAgents(agents, "backend")
-	if len(idleBackend) != 1 {
-		t.Errorf("GetIdleAgents('backend') = %d, want 1", len(idleBackend))
+	// Idle api only
+	idleAPI := b.GetIdleAgents(agents, "api")
+	if len(idleAPI) != 1 {
+		t.Errorf("GetIdleAgents('api') = %d, want 1", len(idleAPI))
 	}
 }
 
-func TestBalancer_GetAgentsByRole(t *testing.T) {
+func TestBalancer_GetAgentsByWorkstream(t *testing.T) {
 	b := NewBalancer()
 
 	agents := []*Agent{
-		{Name: "a1", Role: "backend", Status: "idle"},
-		{Name: "a2", Role: "backend", Status: "working"},
-		{Name: "a3", Role: "frontend", Status: "idle"},
+		{Name: "a1", Workstream: "api", Status: "idle"},
+		{Name: "a2", Workstream: "api", Status: "working"},
+		{Name: "a3", Workstream: "web", Status: "idle"},
 	}
 
-	backend := b.GetAgentsByRole(agents, "backend")
-	if len(backend) != 2 {
-		t.Errorf("GetAgentsByRole('backend') = %d, want 2", len(backend))
+	api := b.GetAgentsByWorkstream(agents, "api")
+	if len(api) != 2 {
+		t.Errorf("GetAgentsByWorkstream('api') = %d, want 2", len(api))
 	}
 
-	frontend := b.GetAgentsByRole(agents, "frontend")
-	if len(frontend) != 1 {
-		t.Errorf("GetAgentsByRole('frontend') = %d, want 1", len(frontend))
+	web := b.GetAgentsByWorkstream(agents, "web")
+	if len(web) != 1 {
+		t.Errorf("GetAgentsByWorkstream('web') = %d, want 1", len(web))
 	}
 }
 
-func TestBalancer_GetRolesNeeded(t *testing.T) {
+func TestBalancer_GetWorkstreamsNeeded(t *testing.T) {
 	b := NewBalancer()
 
 	tasks := []*Task{
-		{ID: "T1", Role: "backend", Status: StatusPending},
-		{ID: "T2", Role: "frontend", Status: StatusPending},
-		{ID: "T3", Role: "qa", Status: StatusPending},
-		{ID: "T4", Role: "backend", Status: StatusComplete}, // Should be ignored
+		{ID: "T1", Workstream: "api", Status: StatusPending},
+		{ID: "T2", Workstream: "web", Status: StatusPending},
+		{ID: "T3", Workstream: "qa", Status: StatusPending},
+		{ID: "T4", Workstream: "api", Status: StatusComplete}, // Should be ignored
 	}
 
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend"},
+		{Name: "api-1", Workstream: "api"},
 	}
 
-	needed := b.GetRolesNeeded(tasks, agents)
+	needed := b.GetWorkstreamsNeeded(tasks, agents)
 
-	// Should need frontend and qa
+	// Should need web and qa
 	if len(needed) != 2 {
-		t.Errorf("GetRolesNeeded() = %v, want 2 roles", needed)
+		t.Errorf("GetWorkstreamsNeeded() = %v, want 2 workstreams", needed)
 	}
 
-	// Verify roles
+	// Verify workstreams
 	needMap := make(map[string]bool)
-	for _, r := range needed {
-		needMap[r] = true
+	for _, ws := range needed {
+		needMap[ws] = true
 	}
 
-	if !needMap["frontend"] {
-		t.Error("Should need frontend role")
+	if !needMap["web"] {
+		t.Error("Should need web workstream")
 	}
 	if !needMap["qa"] {
-		t.Error("Should need qa role")
+		t.Error("Should need qa workstream")
 	}
-	if needMap["backend"] {
-		t.Error("Should not need backend role (already have agent)")
+	if needMap["api"] {
+		t.Error("Should not need api workstream (already have agent)")
 	}
 }
 
-func TestBalancer_GetRolesNeededWithBlocked(t *testing.T) {
+func TestBalancer_GetWorkstreamsNeededWithBlocked(t *testing.T) {
 	b := NewBalancer()
 
 	tasks := []*Task{
-		{ID: "T1", Role: "backend", Status: StatusBlocked}, // Should be included
+		{ID: "T1", Workstream: "api", Status: StatusBlocked}, // Should be included
 	}
 
 	agents := []*Agent{}
 
-	needed := b.GetRolesNeeded(tasks, agents)
+	needed := b.GetWorkstreamsNeeded(tasks, agents)
 
-	if len(needed) != 1 || needed[0] != "backend" {
-		t.Errorf("GetRolesNeeded() = %v, want [backend]", needed)
+	if len(needed) != 1 || needed[0] != "api" {
+		t.Errorf("GetWorkstreamsNeeded() = %v, want [api]", needed)
 	}
 }
 
@@ -321,7 +321,7 @@ func TestBalancer_ConcurrentAccess(_ *testing.T) {
 func TestBalancer_EmptyAgentsList(t *testing.T) {
 	b := NewBalancer()
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{}
 
 	_, err := b.AssignTask(task, agents)
@@ -346,13 +346,13 @@ func TestBalancer_SelectLeastLoadedEmpty(t *testing.T) {
 func TestBalancerWithStrategy_LeastLoaded(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyLeastLoaded)
 
-	b.TrackAssignment("be-1")
-	b.TrackAssignment("be-1")
+	b.TrackAssignment("api-1")
+	b.TrackAssignment("api-1")
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
-		{Name: "be-2", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
+		{Name: "api-2", Workstream: "api", Status: "idle"},
 	}
 
 	agent, err := b.AssignTaskWithStrategy(task, agents)
@@ -361,19 +361,19 @@ func TestBalancerWithStrategy_LeastLoaded(t *testing.T) {
 		t.Fatalf("AssignTaskWithStrategy() error: %v", err)
 	}
 
-	if agent.Name != "be-2" {
-		t.Errorf("Selected %s, want be-2 (least loaded)", agent.Name)
+	if agent.Name != "api-2" {
+		t.Errorf("Selected %s, want api-2 (least loaded)", agent.Name)
 	}
 }
 
 func TestBalancerWithStrategy_RoundRobin(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyRoundRobin)
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
-		{Name: "be-2", Role: "backend", Status: "idle"},
-		{Name: "be-3", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
+		{Name: "api-2", Workstream: "api", Status: "idle"},
+		{Name: "api-3", Workstream: "api", Status: "idle"},
 	}
 
 	// Should cycle through agents
@@ -400,9 +400,9 @@ func TestBalancerWithStrategy_RoundRobin(t *testing.T) {
 func TestBalancerWithStrategy_Random(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyRandom)
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
 	}
 
 	agent, err := b.AssignTaskWithStrategy(task, agents)
@@ -411,8 +411,8 @@ func TestBalancerWithStrategy_Random(t *testing.T) {
 		t.Fatalf("AssignTaskWithStrategy() error: %v", err)
 	}
 
-	if agent.Name != "be-1" {
-		t.Errorf("Selected %s, want be-1", agent.Name)
+	if agent.Name != "api-1" {
+		t.Errorf("Selected %s, want api-1", agent.Name)
 	}
 }
 
@@ -420,7 +420,7 @@ func TestBalancerWithStrategy_NilTask(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyLeastLoaded)
 
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "idle"},
+		{Name: "api-1", Workstream: "api", Status: "idle"},
 	}
 
 	_, err := b.AssignTaskWithStrategy(nil, agents)
@@ -429,27 +429,27 @@ func TestBalancerWithStrategy_NilTask(t *testing.T) {
 	}
 }
 
-func TestBalancerWithStrategy_NoMatchingRole(t *testing.T) {
+func TestBalancerWithStrategy_NoMatchingWorkstream(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyLeastLoaded)
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "fe-1", Role: "frontend", Status: "idle"},
+		{Name: "web-1", Workstream: "web", Status: "idle"},
 	}
 
 	_, err := b.AssignTaskWithStrategy(task, agents)
 
 	if err == nil {
-		t.Error("AssignTaskWithStrategy() should error when no matching role")
+		t.Error("AssignTaskWithStrategy() should error when no matching workstream")
 	}
 }
 
 func TestBalancerWithStrategy_NoIdleAgents(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyLeastLoaded)
 
-	task := &Task{ID: "T1", Role: "backend"}
+	task := &Task{ID: "T1", Workstream: "api"}
 	agents := []*Agent{
-		{Name: "be-1", Role: "backend", Status: "working"},
+		{Name: "api-1", Workstream: "api", Status: "working"},
 	}
 
 	_, err := b.AssignTaskWithStrategy(task, agents)
@@ -462,7 +462,7 @@ func TestBalancerWithStrategy_NoIdleAgents(t *testing.T) {
 func TestBalancerWithStrategy_SelectRoundRobinEmpty(t *testing.T) {
 	b := NewBalancerWithStrategy(StrategyRoundRobin)
 
-	result := b.selectRoundRobin([]*Agent{}, "backend")
+	result := b.selectRoundRobin([]*Agent{}, "api")
 
 	if result != nil {
 		t.Error("selectRoundRobin([]) should return nil")

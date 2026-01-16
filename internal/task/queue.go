@@ -6,12 +6,12 @@ import (
 	"sync"
 )
 
-// Queue is a priority queue for tasks, organized by role.
-// It supports role-aware dequeuing, allowing agents to request tasks
-// matching their specific role while maintaining priority ordering.
+// Queue is a priority queue for tasks, organized by workstream.
+// It supports workstream-aware dequeuing, allowing agents to request tasks
+// matching their specific workstream while maintaining priority ordering.
 type Queue struct {
 	mu     sync.RWMutex
-	queues map[string]*priorityQueue // role -> queue
+	queues map[string]*priorityQueue // workstream -> queue
 }
 
 // NewQueue creates a new task queue.
@@ -22,38 +22,36 @@ func NewQueue() *Queue {
 }
 
 // Enqueue adds a task to the queue.
-// Returns an error if the task is nil or has no role assigned.
+// Returns an error if the task is nil.
 func (q *Queue) Enqueue(t *Task) error {
 	if t == nil {
 		return fmt.Errorf("task is nil")
-	}
-	if t.Role == "" {
-		return fmt.Errorf("task has no role")
 	}
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	pq, ok := q.queues[t.Role]
+	ws := t.GetWorkstream()
+	pq, ok := q.queues[ws]
 	if !ok {
 		pq = &priorityQueue{}
 		heap.Init(pq)
-		q.queues[t.Role] = pq
+		q.queues[ws] = pq
 	}
 
 	heap.Push(pq, &queueItem{task: t, priority: priorityValue(t.Priority)})
 	return nil
 }
 
-// Dequeue removes and returns the highest priority task for a role.
-// Returns an error if there are no tasks for the specified role.
-func (q *Queue) Dequeue(role string) (*Task, error) {
+// Dequeue removes and returns the highest priority task for a workstream.
+// Returns an error if there are no tasks for the specified workstream.
+func (q *Queue) Dequeue(workstream string) (*Task, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	pq, ok := q.queues[role]
+	pq, ok := q.queues[workstream]
 	if !ok || pq.Len() == 0 {
-		return nil, fmt.Errorf("no tasks for role %q", role)
+		return nil, fmt.Errorf("no tasks for workstream %q", workstream)
 	}
 
 	item, _ := heap.Pop(pq).(*queueItem)
@@ -61,20 +59,20 @@ func (q *Queue) Dequeue(role string) (*Task, error) {
 }
 
 // Peek returns the highest priority task without removing it.
-// Returns an error if there are no tasks for the specified role.
-func (q *Queue) Peek(role string) (*Task, error) {
+// Returns an error if there are no tasks for the specified workstream.
+func (q *Queue) Peek(workstream string) (*Task, error) {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	pq, ok := q.queues[role]
+	pq, ok := q.queues[workstream]
 	if !ok || pq.Len() == 0 {
-		return nil, fmt.Errorf("no tasks for role %q", role)
+		return nil, fmt.Errorf("no tasks for workstream %q", workstream)
 	}
 
 	return (*pq)[0].task, nil
 }
 
-// Size returns total number of tasks in queue across all roles.
+// Size returns total number of tasks in queue across all workstreams.
 func (q *Queue) Size() int {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -86,30 +84,30 @@ func (q *Queue) Size() int {
 	return total
 }
 
-// SizeByRole returns number of tasks for a specific role.
-func (q *Queue) SizeByRole(role string) int {
+// SizeByWorkstream returns number of tasks for a specific workstream.
+func (q *Queue) SizeByWorkstream(workstream string) int {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	pq, ok := q.queues[role]
+	pq, ok := q.queues[workstream]
 	if !ok {
 		return 0
 	}
 	return pq.Len()
 }
 
-// Roles returns all roles with pending tasks.
-func (q *Queue) Roles() []string {
+// Workstreams returns all workstreams with pending tasks.
+func (q *Queue) Workstreams() []string {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	roles := make([]string, 0, len(q.queues))
-	for role, pq := range q.queues {
+	workstreams := make([]string, 0, len(q.queues))
+	for ws, pq := range q.queues {
 		if pq.Len() > 0 {
-			roles = append(roles, role)
+			workstreams = append(workstreams, ws)
 		}
 	}
-	return roles
+	return workstreams
 }
 
 // Clear empties the queue.
@@ -131,13 +129,13 @@ func (q *Queue) EnqueueAll(tasks []*Task) error {
 	return nil
 }
 
-// DequeueAll removes and returns all tasks for a role.
-// Returns nil if there are no tasks for the role.
-func (q *Queue) DequeueAll(role string) []*Task {
+// DequeueAll removes and returns all tasks for a workstream.
+// Returns nil if there are no tasks for the workstream.
+func (q *Queue) DequeueAll(workstream string) []*Task {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	pq, ok := q.queues[role]
+	pq, ok := q.queues[workstream]
 	if !ok {
 		return nil
 	}
@@ -189,12 +187,12 @@ func (q *Queue) Stats() *QueueStats {
 	defer q.mu.RUnlock()
 
 	stats := &QueueStats{
-		ByRole:     make(map[string]int),
-		ByPriority: make(map[Priority]int),
+		ByWorkstream: make(map[string]int),
+		ByPriority:   make(map[Priority]int),
 	}
 
-	for role, pq := range q.queues {
-		stats.ByRole[role] = pq.Len()
+	for ws, pq := range q.queues {
+		stats.ByWorkstream[ws] = pq.Len()
 		stats.Total += pq.Len()
 
 		for _, item := range *pq {
@@ -207,7 +205,7 @@ func (q *Queue) Stats() *QueueStats {
 
 // QueueStats contains statistics about the queue.
 type QueueStats struct {
-	Total      int
-	ByRole     map[string]int
-	ByPriority map[Priority]int
+	Total        int
+	ByWorkstream map[string]int
+	ByPriority   map[Priority]int
 }

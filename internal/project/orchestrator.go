@@ -29,10 +29,10 @@ const (
 type OrchestratorConfig struct {
 	// PollInterval is how often to check for tasks and agents.
 	PollInterval time.Duration
-	// MaxAgentsPerRole is the maximum agents to spawn per role (deprecated, use RoleConcurrency).
-	MaxAgentsPerRole int
-	// RoleConcurrency maps role names to their concurrency limits.
-	RoleConcurrency map[string]int
+	// MaxAgentsPerWorkstream is the maximum agents to spawn per workstream (deprecated, use WorkstreamConcurrency).
+	MaxAgentsPerWorkstream int
+	// WorkstreamConcurrency maps workstream names to their concurrency limits.
+	WorkstreamConcurrency map[string]int
 	// AutoSpawnAgents enables automatic agent spawning.
 	AutoSpawnAgents bool
 	// StopWhenComplete stops orchestrator when all tasks complete.
@@ -42,24 +42,24 @@ type OrchestratorConfig struct {
 // DefaultOrchestratorConfig returns sensible default configuration.
 func DefaultOrchestratorConfig() OrchestratorConfig {
 	return OrchestratorConfig{
-		PollInterval:     10 * time.Second,
-		MaxAgentsPerRole: 1,
-		RoleConcurrency:  make(map[string]int),
-		AutoSpawnAgents:  true,
-		StopWhenComplete: false,
+		PollInterval:           10 * time.Second,
+		MaxAgentsPerWorkstream: 1,
+		WorkstreamConcurrency:  make(map[string]int),
+		AutoSpawnAgents:        true,
+		StopWhenComplete:       false,
 	}
 }
 
-// GetRoleConcurrency returns the concurrency limit for a role.
-// Falls back to MaxAgentsPerRole if no specific limit is set.
-func (c *OrchestratorConfig) GetRoleConcurrency(role string) int {
-	if c.RoleConcurrency != nil {
-		if concurrency, ok := c.RoleConcurrency[role]; ok && concurrency > 0 {
+// GetWorkstreamConcurrency returns the concurrency limit for a workstream.
+// Falls back to MaxAgentsPerWorkstream if no specific limit is set.
+func (c *OrchestratorConfig) GetWorkstreamConcurrency(workstream string) int {
+	if c.WorkstreamConcurrency != nil {
+		if concurrency, ok := c.WorkstreamConcurrency[workstream]; ok && concurrency > 0 {
 			return concurrency
 		}
 	}
-	if c.MaxAgentsPerRole > 0 {
-		return c.MaxAgentsPerRole
+	if c.MaxAgentsPerWorkstream > 0 {
+		return c.MaxAgentsPerWorkstream
 	}
 	return 1
 }
@@ -90,16 +90,16 @@ type Orchestrator struct {
 
 // TaskBalancer selects agents for tasks.
 type TaskBalancer interface {
-	GetIdleAgents(agents []*AgentInfo, role string) []*AgentInfo
+	GetIdleAgents(agents []*AgentInfo, workstream string) []*AgentInfo
 	TrackAssignment(agentName string)
 	TrackCompletion(agentName string)
 }
 
 // AgentInfo represents agent information for balancing.
 type AgentInfo struct {
-	Name   string
-	Role   string
-	Status string // "idle", "working", "stopped"
+	Name       string
+	Workstream string
+	Status     string // "idle", "working", "stopped"
 }
 
 // DependencyResolver checks task dependencies.
@@ -127,9 +127,9 @@ func NewOrchestrator(
 ) *Orchestrator {
 	wsScheduler := NewWorkstreamScheduler(taskMgr)
 
-	// Initialize role concurrency from config
-	for role, concurrency := range config.RoleConcurrency {
-		wsScheduler.SetRoleConcurrency(role, concurrency)
+	// Initialize workstream concurrency from config
+	for workstream, concurrency := range config.WorkstreamConcurrency {
+		wsScheduler.SetWorkstreamConcurrency(workstream, concurrency)
 	}
 
 	return &Orchestrator{
@@ -143,10 +143,10 @@ func NewOrchestrator(
 	}
 }
 
-// SetRoleConcurrency sets the concurrency for a role.
-func (o *Orchestrator) SetRoleConcurrency(role string, concurrency int) {
-	o.config.RoleConcurrency[role] = concurrency
-	o.wsScheduler.SetRoleConcurrency(role, concurrency)
+// SetWorkstreamConcurrency sets the concurrency for a workstream.
+func (o *Orchestrator) SetWorkstreamConcurrency(workstream string, concurrency int) {
+	o.config.WorkstreamConcurrency[workstream] = concurrency
+	o.wsScheduler.SetWorkstreamConcurrency(workstream, concurrency)
 }
 
 // GetWorkstreamScheduler returns the workstream scheduler.
@@ -215,7 +215,7 @@ func (o *Orchestrator) Stop() error {
 	// Stop project agents
 	agents, _ := o.agentMgr.List()
 	for _, ag := range agents {
-		if ag.Role != "" {
+		if ag.Workstream != "" {
 			_ = o.agentMgr.Stop(ag.Name)
 		}
 	}
@@ -260,22 +260,23 @@ func (o *Orchestrator) GetProgress() *Progress {
 	tasks, _ := o.taskMgr.Scan()
 
 	progress := &Progress{
-		Total:    len(tasks),
-		ByStatus: make(map[task.Status]int),
-		ByRole:   make(map[string]*RoleProgress),
+		Total:        len(tasks),
+		ByStatus:     make(map[task.Status]int),
+		ByWorkstream: make(map[string]*WorkstreamProgress),
 	}
 
 	for _, t := range tasks {
 		progress.ByStatus[t.Status]++
 
-		rp, ok := progress.ByRole[t.Role]
+		ws := t.GetWorkstream()
+		wp, ok := progress.ByWorkstream[ws]
 		if !ok {
-			rp = &RoleProgress{Role: t.Role}
-			progress.ByRole[t.Role] = rp
+			wp = &WorkstreamProgress{Workstream: ws}
+			progress.ByWorkstream[ws] = wp
 		}
-		rp.Total++
+		wp.Total++
 		if t.Status == task.StatusComplete {
-			rp.Complete++
+			wp.Complete++
 		}
 	}
 
@@ -292,20 +293,20 @@ func (o *Orchestrator) GetProgress() *Progress {
 
 // Progress contains detailed progress information.
 type Progress struct {
-	Total      int
-	Complete   int
-	InProgress int
-	Pending    int
-	Percentage float64
-	ByStatus   map[task.Status]int
-	ByRole     map[string]*RoleProgress
+	Total        int
+	Complete     int
+	InProgress   int
+	Pending      int
+	Percentage   float64
+	ByStatus     map[task.Status]int
+	ByWorkstream map[string]*WorkstreamProgress
 }
 
-// RoleProgress contains progress for a specific role.
-type RoleProgress struct {
-	Role     string
-	Total    int
-	Complete int
+// WorkstreamProgress contains progress for a specific workstream.
+type WorkstreamProgress struct {
+	Workstream string
+	Total      int
+	Complete   int
 }
 
 // Events returns the event channel for subscribing to task events.
@@ -357,7 +358,7 @@ func (o *Orchestrator) initialize(_ context.Context) error {
 
 	// Spawn agents if configured
 	if o.config.AutoSpawnAgents {
-		if err := o.spawnAgentsForRoles(tasks); err != nil {
+		if err := o.spawnAgentsForWorkstreams(tasks); err != nil {
 			return fmt.Errorf("spawn agents: %w", err)
 		}
 	}
@@ -365,25 +366,25 @@ func (o *Orchestrator) initialize(_ context.Context) error {
 	return nil
 }
 
-// spawnAgentsForRoles spawns agents for each role that has pending tasks.
-// Uses per-role concurrency from config.
-func (o *Orchestrator) spawnAgentsForRoles(tasks []*task.Task) error {
-	// Collect roles from pending tasks
-	roles := make(map[string]bool)
+// spawnAgentsForWorkstreams spawns agents for each workstream that has pending tasks.
+// Uses per-workstream concurrency from config.
+func (o *Orchestrator) spawnAgentsForWorkstreams(tasks []*task.Task) error {
+	// Collect workstreams from pending tasks
+	workstreams := make(map[string]bool)
 	for _, t := range tasks {
 		if t.Status == task.StatusPending || t.Status == task.StatusBlocked {
-			roles[t.Role] = true
+			workstreams[t.GetWorkstream()] = true
 		}
 	}
 
-	// Spawn agents for each role based on concurrency
-	for role := range roles {
-		concurrency := o.config.GetRoleConcurrency(role)
+	// Spawn agents for each workstream based on concurrency
+	for workstream := range workstreams {
+		concurrency := o.config.GetWorkstreamConcurrency(workstream)
 
 		for i := 0; i < concurrency; i++ {
-			agentName := fmt.Sprintf("%s-agent", role)
+			agentName := fmt.Sprintf("%s-agent", workstream)
 			if concurrency > 1 {
-				agentName = fmt.Sprintf("%s-agent-%d", role, i+1)
+				agentName = fmt.Sprintf("%s-agent-%d", workstream, i+1)
 			}
 
 			// Check if exists
@@ -393,7 +394,7 @@ func (o *Orchestrator) spawnAgentsForRoles(tasks []*task.Task) error {
 				continue
 			}
 
-			log.Printf("Spawning agent %s for role %s (concurrency: %d)", agentName, role, concurrency)
+			log.Printf("Spawning agent %s for workstream %s (concurrency: %d)", agentName, workstream, concurrency)
 			// Note: actual spawning would happen here with agentMgr.Spawn
 		}
 	}
@@ -450,14 +451,14 @@ func (o *Orchestrator) assignPendingTasks(ctx context.Context) {
 	agents, _ := o.agentMgr.List()
 
 	for _, ag := range agents {
-		if ag.Status != "idle" || ag.Role == "" {
+		if ag.Status != "idle" || ag.Workstream == "" {
 			continue
 		}
 
-		// Try to get next task for this role
-		t, err := o.queue.Dequeue(ag.Role)
+		// Try to get next task for this workstream
+		t, err := o.queue.Dequeue(ag.Workstream)
 		if err != nil {
-			continue // No tasks for this role
+			continue // No tasks for this workstream
 		}
 
 		// Check if blocked

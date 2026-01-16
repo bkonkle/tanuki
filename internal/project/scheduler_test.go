@@ -60,13 +60,12 @@ func setupTestScheduler(t *testing.T, tasks []*task.Task) (*ReadinessAwareSchedu
 	return scheduler, tempDir
 }
 
-func TestReadinessAwareScheduler_SameRoleDependency(t *testing.T) {
-	// WS-B depends on WS-A (same role) - should spawn WS-A first
+func TestReadinessAwareScheduler_SameWorkstreamDependency(t *testing.T) {
+	// WS-B depends on WS-A - should spawn WS-A first
 	tasks := []*task.Task{
 		{
 			ID:         "WS-A-001",
 			Title:      "Task A1",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			FilePath:   "WS-A-001.md",
@@ -74,7 +73,6 @@ func TestReadinessAwareScheduler_SameRoleDependency(t *testing.T) {
 		{
 			ID:         "WS-B-001",
 			Title:      "Task B1",
-			Role:       "backend",
 			Workstream: "B",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"WS-A-001"},
@@ -83,19 +81,20 @@ func TestReadinessAwareScheduler_SameRoleDependency(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
+	scheduler.SetWorkstreamConcurrency("B", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
 	// Should select WS-A first (it has a ready task)
-	next := scheduler.GetNextWorkstream("backend")
+	next := scheduler.GetNextReadyWorkstream()
 	if next == nil {
-		t.Fatal("GetNextWorkstream() returned nil, expected WS-A")
+		t.Fatal("GetNextReadyWorkstream() returned nil, expected WS-A")
 	}
 	if next.Workstream != "A" {
-		t.Errorf("GetNextWorkstream() = %s, want A", next.Workstream)
+		t.Errorf("GetNextReadyWorkstream() = %s, want A", next.Workstream)
 	}
 
 	// WS-A has 1 ready task
@@ -104,16 +103,16 @@ func TestReadinessAwareScheduler_SameRoleDependency(t *testing.T) {
 	}
 
 	// Mark WS-A as active
-	scheduler.ActivateWorkstream("backend", "A")
+	scheduler.ActivateWorkstream("A")
 
-	// Should not return another workstream (at concurrency limit)
-	next = scheduler.GetNextWorkstream("backend")
+	// Should not return WS-A again (it's active)
+	next = scheduler.GetNextWorkstream("A")
 	if next != nil {
-		t.Errorf("GetNextWorkstream() = %v, want nil (at limit)", next.Workstream)
+		t.Errorf("GetNextWorkstream('A') = %v, want nil (already active)", next.Workstream)
 	}
 
 	// WS-B should be blocked
-	blocked := scheduler.GetBlockedWorkstreams("backend")
+	blocked := scheduler.GetBlockedWorkstreams()
 	if len(blocked) != 1 {
 		t.Errorf("GetBlockedWorkstreams() returned %d, want 1", len(blocked))
 	}
@@ -122,13 +121,12 @@ func TestReadinessAwareScheduler_SameRoleDependency(t *testing.T) {
 	}
 }
 
-func TestReadinessAwareScheduler_CrossRoleDependency(t *testing.T) {
-	// FE depends on BE - BE should be ready, FE blocked until BE completes
+func TestReadinessAwareScheduler_CrossWorkstreamDependency(t *testing.T) {
+	// Task in "main" workstream depends on another task in "main" - dependency should work
 	tasks := []*task.Task{
 		{
 			ID:         "BE-001",
 			Title:      "Backend Task",
-			Role:       "backend",
 			Workstream: "main",
 			Status:     task.StatusPending,
 			FilePath:   "BE-001.md",
@@ -136,7 +134,6 @@ func TestReadinessAwareScheduler_CrossRoleDependency(t *testing.T) {
 		{
 			ID:         "FE-001",
 			Title:      "Frontend Task",
-			Role:       "frontend",
 			Workstream: "main",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"BE-001"},
@@ -145,31 +142,27 @@ func TestReadinessAwareScheduler_CrossRoleDependency(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
-	scheduler.SetRoleConcurrency("frontend", 1)
+	scheduler.SetWorkstreamConcurrency("main", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
-	// Backend should be ready
-	beNext := scheduler.GetNextWorkstream("backend")
-	if beNext == nil {
-		t.Fatal("Backend GetNextWorkstream() returned nil")
+	// main workstream should be ready (has BE-001 ready)
+	next := scheduler.GetNextReadyWorkstream()
+	if next == nil {
+		t.Fatal("GetNextReadyWorkstream() returned nil")
 	}
-	if beNext.Workstream != "main" {
-		t.Errorf("Backend workstream = %s, want main", beNext.Workstream)
-	}
-
-	// Frontend should be blocked (depends on BE-001)
-	feNext := scheduler.GetNextWorkstream("frontend")
-	if feNext != nil {
-		t.Errorf("Frontend GetNextWorkstream() = %v, want nil (blocked)", feNext.Workstream)
+	if next.Workstream != "main" {
+		t.Errorf("workstream = %s, want main", next.Workstream)
 	}
 
-	blocked := scheduler.GetBlockedWorkstreams("frontend")
-	if len(blocked) != 1 {
-		t.Errorf("Frontend blocked count = %d, want 1", len(blocked))
+	// Should have 1 ready task (BE-001) and 1 blocked (FE-001)
+	if next.ReadyTaskCount != 1 {
+		t.Errorf("ReadyTaskCount = %d, want 1", next.ReadyTaskCount)
+	}
+	if next.BlockedTaskCount != 1 {
+		t.Errorf("BlockedTaskCount = %d, want 1", next.BlockedTaskCount)
 	}
 }
 
@@ -179,7 +172,6 @@ func TestReadinessAwareScheduler_CircularDependency(t *testing.T) {
 		{
 			ID:         "A-001",
 			Title:      "Task A",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"B-001"},
@@ -188,7 +180,6 @@ func TestReadinessAwareScheduler_CircularDependency(t *testing.T) {
 		{
 			ID:         "B-001",
 			Title:      "Task B",
-			Role:       "backend",
 			Workstream: "B",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"A-001"},
@@ -197,7 +188,8 @@ func TestReadinessAwareScheduler_CircularDependency(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
+	scheduler.SetWorkstreamConcurrency("B", 1)
 
 	err := scheduler.Initialize()
 	if err == nil {
@@ -211,7 +203,6 @@ func TestReadinessAwareScheduler_DynamicRebalancing(t *testing.T) {
 		{
 			ID:         "WS-A-001",
 			Title:      "Task A1",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			FilePath:   "WS-A-001.md",
@@ -219,7 +210,6 @@ func TestReadinessAwareScheduler_DynamicRebalancing(t *testing.T) {
 		{
 			ID:         "WS-B-001",
 			Title:      "Task B1",
-			Role:       "backend",
 			Workstream: "B",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"WS-A-001"},
@@ -228,24 +218,25 @@ func TestReadinessAwareScheduler_DynamicRebalancing(t *testing.T) {
 	}
 
 	scheduler, tempDir := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
+	scheduler.SetWorkstreamConcurrency("B", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
 	// Initially, WS-B should be blocked
-	blocked := scheduler.GetBlockedWorkstreams("backend")
+	blocked := scheduler.GetBlockedWorkstreams()
 	if len(blocked) != 1 {
 		t.Fatalf("Initial blocked count = %d, want 1", len(blocked))
 	}
 
 	// Get and activate WS-A (this removes it from the ready queue)
-	wsA := scheduler.GetNextWorkstream("backend")
+	wsA := scheduler.GetNextReadyWorkstream()
 	if wsA == nil || wsA.Workstream != "A" {
 		t.Fatalf("Expected to get workstream A, got %v", wsA)
 	}
-	scheduler.ActivateWorkstream("backend", "A")
+	scheduler.ActivateWorkstream("A")
 
 	// Simulate completing WS-A-001
 	taskPath := filepath.Join(tempDir, "tasks", "WS-A-001.md")
@@ -265,12 +256,12 @@ func TestReadinessAwareScheduler_DynamicRebalancing(t *testing.T) {
 	scheduler.OnTaskComplete("WS-A-001")
 
 	// Now WS-B should be ready (moved from blocked to ready queue)
-	blocked = scheduler.GetBlockedWorkstreams("backend")
+	blocked = scheduler.GetBlockedWorkstreams()
 	if len(blocked) != 0 {
 		t.Errorf("After completion, blocked count = %d, want 0", len(blocked))
 	}
 
-	ready := scheduler.GetReadyWorkstreams("backend")
+	ready := scheduler.GetReadyWorkstreams()
 	if len(ready) != 1 {
 		t.Errorf("After completion, ready count = %d, want 1", len(ready))
 	}
@@ -285,7 +276,6 @@ func TestReadinessAwareScheduler_NoReadyWorkstreams(t *testing.T) {
 		{
 			ID:         "A-001",
 			Title:      "Task A",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"missing-001"},
@@ -294,20 +284,20 @@ func TestReadinessAwareScheduler_NoReadyWorkstreams(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
 	// Should return nil (no ready workstreams)
-	next := scheduler.GetNextWorkstream("backend")
+	next := scheduler.GetNextReadyWorkstream()
 	if next != nil {
-		t.Errorf("GetNextWorkstream() = %v, want nil", next.Workstream)
+		t.Errorf("GetNextReadyWorkstream() = %v, want nil", next.Workstream)
 	}
 
 	// Should show 1 blocked workstream
-	blocked := scheduler.GetBlockedWorkstreams("backend")
+	blocked := scheduler.GetBlockedWorkstreams()
 	if len(blocked) != 1 {
 		t.Errorf("Blocked count = %d, want 1", len(blocked))
 	}
@@ -319,7 +309,6 @@ func TestReadinessAwareScheduler_MultipleReadyWorkstreams(t *testing.T) {
 		{
 			ID:         "WS-A-001",
 			Title:      "Task A1",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			Priority:   task.PriorityLow,
@@ -328,7 +317,6 @@ func TestReadinessAwareScheduler_MultipleReadyWorkstreams(t *testing.T) {
 		{
 			ID:         "WS-B-001",
 			Title:      "Task B1",
-			Role:       "backend",
 			Workstream: "B",
 			Status:     task.StatusPending,
 			Priority:   task.PriorityHigh,
@@ -337,7 +325,6 @@ func TestReadinessAwareScheduler_MultipleReadyWorkstreams(t *testing.T) {
 		{
 			ID:         "WS-C-001",
 			Title:      "Task C1",
-			Role:       "backend",
 			Workstream: "C",
 			Status:     task.StatusPending,
 			Priority:   task.PriorityCritical,
@@ -346,20 +333,22 @@ func TestReadinessAwareScheduler_MultipleReadyWorkstreams(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 3)
+	scheduler.SetWorkstreamConcurrency("A", 1)
+	scheduler.SetWorkstreamConcurrency("B", 1)
+	scheduler.SetWorkstreamConcurrency("C", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
 	// All three should be ready
-	ready := scheduler.GetReadyWorkstreams("backend")
+	ready := scheduler.GetReadyWorkstreams()
 	if len(ready) != 3 {
 		t.Errorf("Ready count = %d, want 3", len(ready))
 	}
 
 	// First should be highest priority (C - critical)
-	first := scheduler.GetNextWorkstream("backend")
+	first := scheduler.GetNextReadyWorkstream()
 	if first == nil || first.Workstream != "C" {
 		name := "nil"
 		if first != nil {
@@ -375,7 +364,6 @@ func TestReadinessAwareScheduler_WorkstreamWithMultipleTasks(t *testing.T) {
 		{
 			ID:         "WS-A-001",
 			Title:      "Task A1",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			FilePath:   "WS-A-001.md",
@@ -383,7 +371,6 @@ func TestReadinessAwareScheduler_WorkstreamWithMultipleTasks(t *testing.T) {
 		{
 			ID:         "WS-A-002",
 			Title:      "Task A2",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"WS-A-001"},
@@ -392,7 +379,6 @@ func TestReadinessAwareScheduler_WorkstreamWithMultipleTasks(t *testing.T) {
 		{
 			ID:         "WS-A-003",
 			Title:      "Task A3",
-			Role:       "backend",
 			Workstream: "A",
 			Status:     task.StatusPending,
 			DependsOn:  []string{"WS-A-002"},
@@ -401,16 +387,16 @@ func TestReadinessAwareScheduler_WorkstreamWithMultipleTasks(t *testing.T) {
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
 
 	if err := scheduler.Initialize(); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 
 	// Workstream should be ready (has 1 ready task, 2 blocked)
-	ws := scheduler.GetNextWorkstream("backend")
+	ws := scheduler.GetNextReadyWorkstream()
 	if ws == nil {
-		t.Fatal("GetNextWorkstream() returned nil")
+		t.Fatal("GetNextReadyWorkstream() returned nil")
 	}
 
 	if ws.ReadyTaskCount != 1 {
@@ -425,36 +411,34 @@ func TestReadinessAwareScheduler_WorkstreamWithMultipleTasks(t *testing.T) {
 }
 
 func TestReadinessAwareScheduler_DeadlockDetection(t *testing.T) {
-	// Cross-role mutual dependency - BE waits on FE, FE waits on BE
+	// Cross-workstream mutual dependency - A waits on B, B waits on A
 	tasks := []*task.Task{
 		{
-			ID:         "BE-001",
-			Title:      "Backend Task",
-			Role:       "backend",
-			Workstream: "main",
+			ID:         "A-001",
+			Title:      "Task A",
+			Workstream: "A",
 			Status:     task.StatusPending,
-			DependsOn:  []string{"FE-001"},
-			FilePath:   "BE-001.md",
+			DependsOn:  []string{"B-001"},
+			FilePath:   "A-001.md",
 		},
 		{
-			ID:         "FE-001",
-			Title:      "Frontend Task",
-			Role:       "frontend",
-			Workstream: "main",
+			ID:         "B-001",
+			Title:      "Task B",
+			Workstream: "B",
 			Status:     task.StatusPending,
-			DependsOn:  []string{"BE-001"},
-			FilePath:   "FE-001.md",
+			DependsOn:  []string{"A-001"},
+			FilePath:   "B-001.md",
 		},
 	}
 
 	scheduler, _ := setupTestScheduler(t, tasks)
-	scheduler.SetRoleConcurrency("backend", 1)
-	scheduler.SetRoleConcurrency("frontend", 1)
+	scheduler.SetWorkstreamConcurrency("A", 1)
+	scheduler.SetWorkstreamConcurrency("B", 1)
 
 	// This should fail during initialization due to cycle detection
 	err := scheduler.Initialize()
 	if err == nil {
-		t.Error("Initialize() should return error for cross-role cycle")
+		t.Error("Initialize() should return error for cross-workstream cycle")
 	}
 }
 

@@ -322,7 +322,6 @@ func (m *Manager) Exec(containerID string, command []string, opts ExecOptions) e
 	args = append(args, containerID)
 
 	// Wrap command to tee output to a log file (streamed to Docker Desktop by tail process)
-	wrappedCmd := []string{"sh", "-c"}
 	cmdStr := ""
 	for i, arg := range command {
 		if i > 0 {
@@ -337,7 +336,7 @@ func (m *Manager) Exec(containerID string, command []string, opts ExecOptions) e
 	}
 	// Tee to /tmp/tanuki.log which is tailed by a background process to stdout
 	cmdStr = "(" + cmdStr + " 2>&1) | tee -a /tmp/tanuki.log"
-	wrappedCmd = append(wrappedCmd, cmdStr)
+	wrappedCmd := []string{"sh", "-c", cmdStr}
 	args = append(args, wrappedCmd...)
 
 	cmd := exec.Command("docker", args...)
@@ -366,7 +365,6 @@ func (m *Manager) ExecWithOutput(containerID string, command []string) (string, 
 	args = append(args, "exec", "--user", "node", containerID)
 
 	// Wrap command to tee output to a log file (streamed to Docker Desktop by tail process)
-	wrappedCmd := []string{"sh", "-c"}
 	cmdStr := ""
 	for i, arg := range command {
 		if i > 0 {
@@ -381,7 +379,7 @@ func (m *Manager) ExecWithOutput(containerID string, command []string) (string, 
 	}
 	// Tee to /tmp/tanuki.log which is tailed by a background process to stdout
 	cmdStr = "(" + cmdStr + " 2>&1) | tee -a /tmp/tanuki.log"
-	wrappedCmd = append(wrappedCmd, cmdStr)
+	wrappedCmd := []string{"sh", "-c", cmdStr}
 	args = append(args, wrappedCmd...)
 
 	cmd := exec.Command("docker", args...) //nolint:gosec // G204: docker args are constructed from trusted caller

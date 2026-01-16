@@ -72,13 +72,6 @@ func Validate(t *Task) error {
 		}
 	}
 
-	if t.Role == "" {
-		return &ValidationError{
-			Field:   "role",
-			Message: "is required",
-		}
-	}
-
 	// Validate priority
 	if !t.Priority.IsValid() {
 		return &ValidationError{

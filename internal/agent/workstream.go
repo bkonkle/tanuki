@@ -25,9 +25,6 @@ type WorkstreamRunner struct {
 	// Project name (empty for root tasks)
 	project string
 
-	// Role for this workstream
-	role string
-
 	// Workstream identifier
 	workstream string
 
@@ -42,7 +39,7 @@ type WorkstreamRunner struct {
 	onTaskComplete       func(taskID string)
 	onTaskFailed         func(taskID string, err error)
 	onBlocked            func(taskID string, blockers []string)
-	onWorkstreamComplete func(role, workstream string)
+	onWorkstreamComplete func(workstream string)
 
 	// Output writer for task execution
 	output io.Writer
@@ -81,7 +78,7 @@ func DefaultWorkstreamConfig() WorkstreamConfig {
 func NewWorkstreamRunner(
 	agentMgr *Manager,
 	taskMgr *task.Manager,
-	projectName, role, workstream string,
+	projectName, workstream string,
 	config WorkstreamConfig,
 ) *WorkstreamRunner {
 	agentName := buildWorkstreamAgentName(projectName, workstream)
@@ -90,7 +87,6 @@ func NewWorkstreamRunner(
 		agentMgr:   agentMgr,
 		taskMgr:    taskMgr,
 		project:    projectName,
-		role:       role,
 		workstream: workstream,
 		agentName:  agentName,
 		config:     config,
@@ -142,15 +138,15 @@ func (r *WorkstreamRunner) SetOnBlocked(fn func(taskID string, blockers []string
 }
 
 // SetOnWorkstreamComplete sets the callback for workstream completion events.
-func (r *WorkstreamRunner) SetOnWorkstreamComplete(fn func(role, workstream string)) {
+func (r *WorkstreamRunner) SetOnWorkstreamComplete(fn func(workstream string)) {
 	r.onWorkstreamComplete = fn
 }
 
 // Run executes all tasks in the workstream sequentially.
 // Returns when all tasks are complete or an unrecoverable error occurs.
 func (r *WorkstreamRunner) Run() error {
-	log.Printf("Starting workstream runner: %s (project=%s, role=%s, workstream=%s)",
-		r.agentName, r.project, r.role, r.workstream)
+	log.Printf("Starting workstream runner: %s (project=%s, workstream=%s)",
+		r.agentName, r.project, r.workstream)
 
 	for {
 		// Get next pending task for this workstream
@@ -159,7 +155,7 @@ func (r *WorkstreamRunner) Run() error {
 			if errors.Is(err, errNoMoreTasks) {
 				log.Printf("Workstream %s complete: no more tasks", r.agentName)
 				if r.onWorkstreamComplete != nil {
-					r.onWorkstreamComplete(r.role, r.workstream)
+					r.onWorkstreamComplete(r.workstream)
 				}
 				return nil
 			}
@@ -199,9 +195,9 @@ func (r *WorkstreamRunner) getNextTask() (*task.Task, error) {
 	var tasks []*task.Task
 
 	if r.project != "" {
-		tasks = r.taskMgr.GetByProjectAndWorkstream(r.project, r.role, r.workstream)
+		tasks = r.taskMgr.GetByProjectAndWorkstream(r.project, r.workstream)
 	} else {
-		tasks = r.taskMgr.GetByRoleAndWorkstream(r.role, r.workstream)
+		tasks = r.taskMgr.GetByWorkstream(r.workstream)
 	}
 
 	// Find first pending task
@@ -324,10 +320,10 @@ type WorkstreamOrchestrator struct {
 	agentMgr *Manager
 	taskMgr  *task.Manager
 
-	// Concurrency limits per role
-	roleConcurrency map[string]int
+	// Concurrency limits per workstream
+	workstreamConcurrency map[string]int
 
-	// Active runners by role
+	// Active runners by workstream
 	activeRunners map[string]int
 
 	// Configuration
@@ -337,36 +333,36 @@ type WorkstreamOrchestrator struct {
 // NewWorkstreamOrchestrator creates an orchestrator for managing workstreams.
 func NewWorkstreamOrchestrator(agentMgr *Manager, taskMgr *task.Manager, config WorkstreamConfig) *WorkstreamOrchestrator {
 	return &WorkstreamOrchestrator{
-		agentMgr:        agentMgr,
-		taskMgr:         taskMgr,
-		roleConcurrency: make(map[string]int),
-		activeRunners:   make(map[string]int),
-		config:          config,
+		agentMgr:              agentMgr,
+		taskMgr:               taskMgr,
+		workstreamConcurrency: make(map[string]int),
+		activeRunners:         make(map[string]int),
+		config:                config,
 	}
 }
 
-// SetRoleConcurrency sets the concurrency limit for a role.
-func (o *WorkstreamOrchestrator) SetRoleConcurrency(role string, limit int) {
+// SetWorkstreamConcurrency sets the concurrency limit for a workstream.
+func (o *WorkstreamOrchestrator) SetWorkstreamConcurrency(workstream string, limit int) {
 	if limit <= 0 {
 		limit = 1
 	}
-	o.roleConcurrency[role] = limit
+	o.workstreamConcurrency[workstream] = limit
 }
 
-// CanStartWorkstream checks if a new workstream can be started for the given role.
-func (o *WorkstreamOrchestrator) CanStartWorkstream(role string) bool {
-	limit := o.roleConcurrency[role]
+// CanStartWorkstream checks if a new workstream can be started.
+func (o *WorkstreamOrchestrator) CanStartWorkstream(workstream string) bool {
+	limit := o.workstreamConcurrency[workstream]
 	if limit <= 0 {
 		limit = 1
 	}
-	return o.activeRunners[role] < limit
+	return o.activeRunners[workstream] < limit
 }
 
 // StartWorkstream spawns an agent and starts running the workstream.
 // Returns the runner for monitoring, or an error if the workstream cannot be started.
-func (o *WorkstreamOrchestrator) StartWorkstream(projectName, role, workstream string) (*WorkstreamRunner, error) {
-	if !o.CanStartWorkstream(role) {
-		return nil, fmt.Errorf("concurrency limit reached for role %s", role)
+func (o *WorkstreamOrchestrator) StartWorkstream(projectName, workstream string) (*WorkstreamRunner, error) {
+	if !o.CanStartWorkstream(workstream) {
+		return nil, fmt.Errorf("concurrency limit reached for workstream %s", workstream)
 	}
 
 	agentName := buildWorkstreamAgentName(projectName, workstream)
@@ -379,8 +375,8 @@ func (o *WorkstreamOrchestrator) StartWorkstream(projectName, role, workstream s
 		log.Printf("Spawning agent %s for workstream (branch: %s)", agentName, branchName)
 
 		_, err = o.agentMgr.Spawn(agentName, SpawnOptions{
-			Branch: branchName,
-			Role:   role,
+			Branch:     branchName,
+			Workstream: workstream,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("spawn agent: %w", err)
@@ -388,10 +384,10 @@ func (o *WorkstreamOrchestrator) StartWorkstream(projectName, role, workstream s
 	}
 
 	// Create runner
-	runner := NewWorkstreamRunner(o.agentMgr, o.taskMgr, projectName, role, workstream, o.config)
+	runner := NewWorkstreamRunner(o.agentMgr, o.taskMgr, projectName, workstream, o.config)
 
 	// Track active runner
-	o.activeRunners[role]++
+	o.activeRunners[workstream]++
 
 	// Set up completion callback to decrement counter
 	originalOnComplete := runner.onTaskComplete
@@ -405,13 +401,13 @@ func (o *WorkstreamOrchestrator) StartWorkstream(projectName, role, workstream s
 }
 
 // ReleaseWorkstream marks a workstream as no longer active.
-func (o *WorkstreamOrchestrator) ReleaseWorkstream(role string) {
-	if o.activeRunners[role] > 0 {
-		o.activeRunners[role]--
+func (o *WorkstreamOrchestrator) ReleaseWorkstream(workstream string) {
+	if o.activeRunners[workstream] > 0 {
+		o.activeRunners[workstream]--
 	}
 }
 
-// GetActiveCount returns the number of active workstreams for a role.
-func (o *WorkstreamOrchestrator) GetActiveCount(role string) int {
-	return o.activeRunners[role]
+// GetActiveCount returns the number of active runners for a workstream.
+func (o *WorkstreamOrchestrator) GetActiveCount(workstream string) int {
+	return o.activeRunners[workstream]
 }

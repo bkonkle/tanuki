@@ -59,81 +59,81 @@ func TestBuildWorktreeBranch(t *testing.T) {
 	}
 }
 
-func TestWorkstreamOrchestrator_SetRoleConcurrency(t *testing.T) {
+func TestWorkstreamOrchestrator_SetWorkstreamConcurrency(t *testing.T) {
 	orch := NewWorkstreamOrchestrator(nil, nil, DefaultWorkstreamConfig())
 
-	orch.SetRoleConcurrency("backend", 3)
-	orch.SetRoleConcurrency("frontend", 2)
-	orch.SetRoleConcurrency("qa", 0) // Should become 1
+	orch.SetWorkstreamConcurrency("auth", 3)
+	orch.SetWorkstreamConcurrency("payments", 2)
+	orch.SetWorkstreamConcurrency("logging", 0) // Should become 1
 
-	if orch.roleConcurrency["backend"] != 3 {
-		t.Errorf("backend concurrency = %d, want 3", orch.roleConcurrency["backend"])
+	if orch.workstreamConcurrency["auth"] != 3 {
+		t.Errorf("auth concurrency = %d, want 3", orch.workstreamConcurrency["auth"])
 	}
-	if orch.roleConcurrency["frontend"] != 2 {
-		t.Errorf("frontend concurrency = %d, want 2", orch.roleConcurrency["frontend"])
+	if orch.workstreamConcurrency["payments"] != 2 {
+		t.Errorf("payments concurrency = %d, want 2", orch.workstreamConcurrency["payments"])
 	}
-	if orch.roleConcurrency["qa"] != 1 {
-		t.Errorf("qa concurrency = %d, want 1 (clamped from 0)", orch.roleConcurrency["qa"])
+	if orch.workstreamConcurrency["logging"] != 1 {
+		t.Errorf("logging concurrency = %d, want 1 (clamped from 0)", orch.workstreamConcurrency["logging"])
 	}
 }
 
 func TestWorkstreamOrchestrator_CanStartWorkstream(t *testing.T) {
 	orch := NewWorkstreamOrchestrator(nil, nil, DefaultWorkstreamConfig())
-	orch.SetRoleConcurrency("backend", 2)
+	orch.SetWorkstreamConcurrency("auth", 2)
 
 	// Should be able to start when no runners active
-	if !orch.CanStartWorkstream("backend") {
+	if !orch.CanStartWorkstream("auth") {
 		t.Error("should be able to start first workstream")
 	}
 
 	// Simulate starting a workstream
-	orch.activeRunners["backend"] = 1
+	orch.activeRunners["auth"] = 1
 
 	// Should still be able to start (limit is 2)
-	if !orch.CanStartWorkstream("backend") {
+	if !orch.CanStartWorkstream("auth") {
 		t.Error("should be able to start second workstream")
 	}
 
 	// Simulate starting another
-	orch.activeRunners["backend"] = 2
+	orch.activeRunners["auth"] = 2
 
 	// Should NOT be able to start (at limit)
-	if orch.CanStartWorkstream("backend") {
+	if orch.CanStartWorkstream("auth") {
 		t.Error("should NOT be able to start third workstream (at limit)")
 	}
 }
 
 func TestWorkstreamOrchestrator_ReleaseWorkstream(t *testing.T) {
 	orch := NewWorkstreamOrchestrator(nil, nil, DefaultWorkstreamConfig())
-	orch.activeRunners["backend"] = 2
+	orch.activeRunners["auth"] = 2
 
-	orch.ReleaseWorkstream("backend")
-	if orch.activeRunners["backend"] != 1 {
-		t.Errorf("activeRunners[backend] = %d, want 1", orch.activeRunners["backend"])
+	orch.ReleaseWorkstream("auth")
+	if orch.activeRunners["auth"] != 1 {
+		t.Errorf("activeRunners[auth] = %d, want 1", orch.activeRunners["auth"])
 	}
 
-	orch.ReleaseWorkstream("backend")
-	if orch.activeRunners["backend"] != 0 {
-		t.Errorf("activeRunners[backend] = %d, want 0", orch.activeRunners["backend"])
+	orch.ReleaseWorkstream("auth")
+	if orch.activeRunners["auth"] != 0 {
+		t.Errorf("activeRunners[auth] = %d, want 0", orch.activeRunners["auth"])
 	}
 
 	// Should not go below zero
-	orch.ReleaseWorkstream("backend")
-	if orch.activeRunners["backend"] != 0 {
-		t.Errorf("activeRunners[backend] = %d, want 0 (should not go negative)", orch.activeRunners["backend"])
+	orch.ReleaseWorkstream("auth")
+	if orch.activeRunners["auth"] != 0 {
+		t.Errorf("activeRunners[auth] = %d, want 0 (should not go negative)", orch.activeRunners["auth"])
 	}
 }
 
 func TestWorkstreamOrchestrator_GetActiveCount(t *testing.T) {
 	orch := NewWorkstreamOrchestrator(nil, nil, DefaultWorkstreamConfig())
 
-	if orch.GetActiveCount("backend") != 0 {
+	if orch.GetActiveCount("auth") != 0 {
 		t.Error("active count should be 0 initially")
 	}
 
-	orch.activeRunners["backend"] = 3
+	orch.activeRunners["auth"] = 3
 
-	if orch.GetActiveCount("backend") != 3 {
-		t.Errorf("active count = %d, want 3", orch.GetActiveCount("backend"))
+	if orch.GetActiveCount("auth") != 3 {
+		t.Errorf("active count = %d, want 3", orch.GetActiveCount("auth"))
 	}
 }

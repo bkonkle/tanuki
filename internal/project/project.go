@@ -43,58 +43,18 @@ func (p *Project) GetWorkstreams() []string {
 	return workstreams
 }
 
-// GetWorkstreamsByRole returns workstreams grouped by role.
-func (p *Project) GetWorkstreamsByRole() map[string][]string {
-	roleWorkstreams := make(map[string]map[string]bool)
-
-	for _, t := range p.Tasks {
-		if roleWorkstreams[t.Role] == nil {
-			roleWorkstreams[t.Role] = make(map[string]bool)
-		}
-		roleWorkstreams[t.Role][t.GetWorkstream()] = true
-	}
-
-	result := make(map[string][]string)
-	for role, wsSet := range roleWorkstreams {
-		workstreams := make([]string, 0, len(wsSet))
-		for ws := range wsSet {
-			workstreams = append(workstreams, ws)
-		}
-		sort.Strings(workstreams)
-		result[role] = workstreams
-	}
-
-	return result
-}
-
-// GetRoles returns all unique roles in this project.
-func (p *Project) GetRoles() []string {
-	roleSet := make(map[string]bool)
-	for _, t := range p.Tasks {
-		roleSet[t.Role] = true
-	}
-
-	roles := make([]string, 0, len(roleSet))
-	for role := range roleSet {
-		roles = append(roles, role)
-	}
-
-	sort.Strings(roles)
-	return roles
-}
-
 // GetStats returns statistics for this project.
 func (p *Project) GetStats() *Stats {
 	stats := &Stats{
-		Total:      len(p.Tasks),
-		ByStatus:   make(map[task.Status]int),
-		ByRole:     make(map[string]int),
-		ByPriority: make(map[task.Priority]int),
+		Total:        len(p.Tasks),
+		ByStatus:     make(map[task.Status]int),
+		ByWorkstream: make(map[string]int),
+		ByPriority:   make(map[task.Priority]int),
 	}
 
 	for _, t := range p.Tasks {
 		stats.ByStatus[t.Status]++
-		stats.ByRole[t.Role]++
+		stats.ByWorkstream[t.GetWorkstream()]++
 		stats.ByPriority[t.Priority]++
 	}
 
@@ -103,10 +63,10 @@ func (p *Project) GetStats() *Stats {
 
 // Stats contains project-level statistics.
 type Stats struct {
-	Total      int
-	ByStatus   map[task.Status]int
-	ByRole     map[string]int
-	ByPriority map[task.Priority]int
+	Total        int
+	ByStatus     map[task.Status]int
+	ByWorkstream map[string]int
+	ByPriority   map[task.Priority]int
 }
 
 // Manager handles loading and managing projects.

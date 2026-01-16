@@ -1,9 +1,12 @@
-package role
+// Package tools provides tool validation and filtering for Tanuki agents.
+package tools
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/bkonkle/tanuki/internal/config"
 )
 
 // ValidTools lists all valid Claude Code tool names.
@@ -20,8 +23,8 @@ var ValidTools = []string{
 	"WebSearch",
 }
 
-// ToolFilterOptions specifies tool filtering behavior.
-type ToolFilterOptions struct {
+// FilterOptions specifies tool filtering behavior.
+type FilterOptions struct {
 	// AllowedTools lists tools that are permitted. Empty means allow all.
 	AllowedTools []string
 
@@ -42,44 +45,44 @@ type FilterResult struct {
 	Errors []error
 }
 
-// FilterTools resolves tool permissions based on role configuration and CLI overrides.
+// FilterTools resolves tool permissions based on workstream configuration and CLI overrides.
 //
 // Priority for allowed tools:
-//  1. Explicit CLI override (opts.AllowedTools) - completely replaces role config
-//  2. Role-based allowed tools (role.AllowedTools)
+//  1. Explicit CLI override (opts.AllowedTools) - completely replaces workstream config
+//  2. Workstream-based allowed tools (ws.AllowedTools)
 //  3. No restrictions (empty list = allow all)
 //
 // Disallowed tools are additive:
-//   - Role disallowed tools + CLI disallowed tools
+//   - Workstream disallowed tools + CLI disallowed tools
 //   - Both lists are combined and deduplicated
 //
 // Validation:
 //   - All tool names must be in ValidTools
 //   - Tools cannot appear in both allowed and disallowed lists
 //   - Returns errors for invalid configurations but still returns a usable result
-func FilterTools(role *Role, opts ToolFilterOptions) *FilterResult {
+func FilterTools(ws *config.WorkstreamConfig, opts FilterOptions) *FilterResult {
 	result := &FilterResult{
 		Errors: []error{},
 	}
 
 	// Resolve allowed tools
 	if len(opts.AllowedTools) > 0 {
-		// CLI override - completely replaces role config
+		// CLI override - completely replaces workstream config
 		result.AllowedTools = make([]string, len(opts.AllowedTools))
 		copy(result.AllowedTools, opts.AllowedTools)
-	} else if role != nil && len(role.AllowedTools) > 0 {
-		// Use role-based restrictions
-		result.AllowedTools = make([]string, len(role.AllowedTools))
-		copy(result.AllowedTools, role.AllowedTools)
+	} else if ws != nil && len(ws.AllowedTools) > 0 {
+		// Use workstream-based restrictions
+		result.AllowedTools = make([]string, len(ws.AllowedTools))
+		copy(result.AllowedTools, ws.AllowedTools)
 	}
 	// else: no allowed tools specified = allow all (empty list)
 
 	// Resolve disallowed tools (additive)
 	disallowedSet := make(map[string]bool)
 
-	// Add role-based disallowed tools
-	if role != nil {
-		for _, tool := range role.DisallowedTools {
+	// Add workstream-based disallowed tools
+	if ws != nil {
+		for _, tool := range ws.DisallowedTools {
 			disallowedSet[tool] = true
 		}
 	}
@@ -167,4 +170,14 @@ func (r *FilterResult) ErrorStrings() []string {
 		msgs[i] = err.Error()
 	}
 	return msgs
+}
+
+// IsValidTool checks if a tool name is valid.
+func IsValidTool(tool string) bool {
+	for _, valid := range ValidTools {
+		if tool == valid {
+			return true
+		}
+	}
+	return false
 }

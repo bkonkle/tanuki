@@ -39,8 +39,11 @@ type Config struct {
 	// Defaults contains default settings applied to all agents
 	Defaults AgentDefaults `yaml:"defaults" mapstructure:"defaults"`
 
-	// Roles contains role-specific configuration overrides
-	Roles map[string]*RoleConfig `yaml:"roles,omitempty" mapstructure:"roles"`
+	// Workstreams contains workstream-specific configuration overrides.
+	// Workstreams can be organized however makes sense for your project -
+	// by feature area (auth, payments), by discipline (backend, frontend),
+	// or any other grouping that fits your workflow.
+	Workstreams map[string]*WorkstreamConfig `yaml:"workstreams,omitempty" mapstructure:"workstreams"`
 
 	// Git contains Git-related settings for branch management
 	Git GitConfig `yaml:"git" mapstructure:"git"`
@@ -49,25 +52,26 @@ type Config struct {
 	Network NetworkConfig `yaml:"network" mapstructure:"network"`
 }
 
-// RoleConfig contains configuration for a specific role.
-// These settings override AgentDefaults and are merged with role definition files.
-type RoleConfig struct {
-	// Concurrency is the maximum number of concurrent workstreams for this role
+// WorkstreamConfig contains configuration for a specific workstream.
+// These settings override AgentDefaults when an agent is spawned for this workstream.
+// Workstreams can be organized by feature area, discipline, or any grouping that fits your workflow.
+type WorkstreamConfig struct {
+	// Concurrency is the maximum number of concurrent instances for this workstream
 	Concurrency int `yaml:"concurrency,omitempty" mapstructure:"concurrency" validate:"omitempty,gte=1,lte=10"`
 
-	// SystemPrompt is the role-specific system prompt
+	// SystemPrompt is the workstream-specific system prompt
 	SystemPrompt string `yaml:"system_prompt,omitempty" mapstructure:"system_prompt"`
 
 	// SystemPromptFile is the path to a file containing the system prompt
 	SystemPromptFile string `yaml:"system_prompt_file,omitempty" mapstructure:"system_prompt_file"`
 
-	// AllowedTools overrides the default allowed tools for this role
+	// AllowedTools overrides the default allowed tools for this workstream
 	AllowedTools []string `yaml:"allowed_tools,omitempty" mapstructure:"allowed_tools"`
 
-	// DisallowedTools lists tools explicitly denied for this role
+	// DisallowedTools lists tools explicitly denied for this workstream
 	DisallowedTools []string `yaml:"disallowed_tools,omitempty" mapstructure:"disallowed_tools"`
 
-	// Model overrides the default Claude model for this role
+	// Model overrides the default Claude model for this workstream
 	Model string `yaml:"model,omitempty" mapstructure:"model"`
 
 	// MaxTurns overrides the default maximum conversation turns
@@ -78,11 +82,11 @@ type RoleConfig struct {
 }
 
 // GetConcurrency returns the concurrency setting with a default of 1.
-func (r *RoleConfig) GetConcurrency() int {
-	if r == nil || r.Concurrency <= 0 {
+func (w *WorkstreamConfig) GetConcurrency() int {
+	if w == nil || w.Concurrency <= 0 {
 		return 1
 	}
-	return r.Concurrency
+	return w.Concurrency
 }
 
 // ImageConfig specifies which Docker image to use for agents.
@@ -468,18 +472,18 @@ func FindProjectConfig() string {
 	return NewLoader().findProjectConfig()
 }
 
-// GetRoleConfig returns the configuration for a specific role.
-// Returns nil if no role-specific config is defined.
-func (c *Config) GetRoleConfig(roleName string) *RoleConfig {
-	if c.Roles == nil {
+// GetWorkstreamConfig returns the configuration for a specific workstream.
+// Returns nil if no workstream-specific config is defined.
+func (c *Config) GetWorkstreamConfig(workstreamName string) *WorkstreamConfig {
+	if c.Workstreams == nil {
 		return nil
 	}
-	return c.Roles[roleName]
+	return c.Workstreams[workstreamName]
 }
 
-// GetRoleConcurrency returns the concurrency for a specific role.
-// Returns 1 (default) if the role has no specific config.
-func (c *Config) GetRoleConcurrency(roleName string) int {
-	rc := c.GetRoleConfig(roleName)
-	return rc.GetConcurrency()
+// GetWorkstreamConcurrency returns the concurrency for a specific workstream.
+// Returns 1 (default) if the workstream has no specific config.
+func (c *Config) GetWorkstreamConcurrency(workstreamName string) int {
+	wc := c.GetWorkstreamConfig(workstreamName)
+	return wc.GetConcurrency()
 }

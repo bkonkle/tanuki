@@ -14,7 +14,6 @@ import (
 	"github.com/bkonkle/tanuki/internal/executor"
 	"github.com/bkonkle/tanuki/internal/git"
 	"github.com/bkonkle/tanuki/internal/project"
-	"github.com/bkonkle/tanuki/internal/role"
 	"github.com/bkonkle/tanuki/internal/state"
 	"github.com/bkonkle/tanuki/internal/task"
 	"github.com/spf13/cobra"
@@ -33,7 +32,7 @@ Agent naming follows the pattern: {project}-{workstream} (e.g., "auth-feature-ma
 
 This command:
   1. Scans tasks/ directory for task files
-  2. Determines which roles and workstreams are needed
+  2. Determines which workstreams are needed
   3. Spawns agents for each workstream
   4. Assigns pending tasks to idle agents
   5. Starts task execution
@@ -104,10 +103,9 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Collect workstreams by role
+	// Collect workstreams
 	type workstreamKey struct {
 		project    string
-		role       string
 		workstream string
 	}
 	workstreams := make(map[workstreamKey]int) // count of pending tasks
@@ -117,7 +115,6 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		if t.Status == task.StatusPending || t.Status == task.StatusBlocked {
 			key := workstreamKey{
 				project:    t.Project,
-				role:       t.Role,
 				workstream: t.GetWorkstream(),
 			}
 			workstreams[key]++
@@ -130,14 +127,8 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Count unique roles
-	roles := make(map[string]bool)
-	for key := range workstreams {
-		roles[key.role] = true
-	}
-
-	fmt.Printf("  Found %d tasks across %d roles, %d workstreams\n",
-		len(tasks), len(roles), len(workstreams))
+	fmt.Printf("  Found %d tasks across %d workstreams\n",
+		len(tasks), len(workstreams))
 	fmt.Println()
 
 	if dryRun {
@@ -145,7 +136,7 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		for key, count := range workstreams {
 			agentName := buildAgentName(key.project, key.workstream)
 			branchName := project.WorktreeBranch(key.project, key.workstream)
-			fmt.Printf("  %s (role: %s) - %d tasks\n", agentName, key.role, count)
+			fmt.Printf("  %s (workstream: %s) - %d tasks\n", agentName, key.workstream, count)
 			fmt.Printf("    Branch: %s\n", branchName)
 		}
 		return nil
@@ -184,9 +175,9 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	// Create readiness-aware scheduler (prevents deadlocks)
 	scheduler := project.NewReadinessAwareScheduler(taskMgr)
 
-	// Set role concurrency limits (default to 1 per role)
-	for role := range roles {
-		scheduler.SetRoleConcurrency(role, 1)
+	// Set workstream concurrency limits (default to 1 per workstream)
+	for key := range workstreams {
+		scheduler.SetWorkstreamConcurrency(key.workstream, 1)
 	}
 
 	// Initialize scheduler - analyzes dependencies and builds readiness graph
@@ -197,8 +188,8 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	// Check for potential deadlocks before starting
 	if deadlock := scheduler.DetectPotentialDeadlock(); deadlock != nil {
 		fmt.Println("Warning: Potential deadlock detected:")
-		for role, blockedBy := range deadlock.BlockedBy {
-			fmt.Printf("  Role %s waiting on: %v\n", role, blockedBy)
+		for ws, blockedBy := range deadlock.BlockedBy {
+			fmt.Printf("  Workstream %s waiting on: %v\n", ws, blockedBy)
 		}
 		fmt.Printf("  %s\n", deadlock.Suggestion)
 		fmt.Println()
@@ -211,25 +202,18 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	// Spawn agents only for ready workstreams (those with unblocked tasks)
 	fmt.Println("Spawning agents for ready workstreams...")
 	runners := make(map[workstreamKey]*agent.WorkstreamRunner)
-	spawnedRoles := make(map[string]bool)
+	spawnedWorkstreams := make(map[string]bool)
 
-	for role := range roles {
-		ws := scheduler.GetNextWorkstream(role)
-		if ws == nil {
-			blockedWS := scheduler.GetBlockedWorkstreams(role)
-			if len(blockedWS) > 0 {
-				fmt.Printf("  Role %s: all %d workstream(s) blocked by dependencies\n", role, len(blockedWS))
-			}
-			continue
-		}
-
+	// Get all ready workstreams
+	readyWorkstreams := scheduler.GetReadyWorkstreams()
+	for _, ws := range readyWorkstreams {
 		agentName := buildAgentName(ws.Project, ws.Workstream)
-		key := workstreamKey{project: ws.Project, role: ws.Role, workstream: ws.Workstream}
+		key := workstreamKey{project: ws.Project, workstream: ws.Workstream}
 
-		fmt.Printf("  Spawning %s (role: %s, ready tasks: %d)...\n", agentName, ws.Role, ws.ReadyTaskCount)
+		fmt.Printf("  Spawning %s (workstream: %s, ready tasks: %d)...\n", agentName, ws.Workstream, ws.ReadyTaskCount)
 
 		start := time.Now()
-		runner, runErr := orchestrator.StartWorkstream(ws.Project, ws.Role, ws.Workstream)
+		runner, runErr := orchestrator.StartWorkstream(ws.Project, ws.Workstream)
 		elapsed := time.Since(start)
 
 		if runErr != nil {
@@ -238,8 +222,8 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 		}
 
 		runners[key] = runner
-		scheduler.ActivateWorkstream(ws.Role, ws.Workstream)
-		spawnedRoles[ws.Role] = true
+		scheduler.ActivateWorkstream(ws.Workstream)
+		spawnedWorkstreams[ws.Workstream] = true
 		fmt.Printf("    Created (%.1fs)\n", elapsed.Seconds())
 
 		// Set up completion callbacks for dynamic rebalancing
@@ -247,24 +231,24 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 			scheduler.OnTaskComplete(taskID)
 		})
 
-		runner.SetOnWorkstreamComplete(func(completedRole, completedWS string) {
-			scheduler.OnWorkstreamComplete(completedRole, completedWS)
-			orchestrator.ReleaseWorkstream(completedRole)
+		runner.SetOnWorkstreamComplete(func(completedWS string) {
+			scheduler.OnWorkstreamComplete(completedWS)
+			orchestrator.ReleaseWorkstream(completedWS)
 
 			// Check if another workstream is now ready
-			nextWS := scheduler.GetNextWorkstream(completedRole)
+			nextWS := scheduler.GetNextReadyWorkstream()
 			if nextWS != nil {
 				// Spawn a new runner for the next ready workstream
 				nextAgentName := buildAgentName(nextWS.Project, nextWS.Workstream)
-				log.Printf("Starting next ready workstream: %s (role: %s)", nextAgentName, nextWS.Role)
+				log.Printf("Starting next ready workstream: %s", nextAgentName)
 
-				nextRunner, nextErr := orchestrator.StartWorkstream(nextWS.Project, nextWS.Role, nextWS.Workstream)
+				nextRunner, nextErr := orchestrator.StartWorkstream(nextWS.Project, nextWS.Workstream)
 				if nextErr != nil {
 					log.Printf("Failed to start next workstream %s: %v", nextAgentName, nextErr)
 					return
 				}
 
-				scheduler.ActivateWorkstream(nextWS.Role, nextWS.Workstream)
+				scheduler.ActivateWorkstream(nextWS.Workstream)
 
 				// Set up callbacks for the new runner
 				nextRunner.SetOnTaskComplete(func(taskID string) {
@@ -283,12 +267,10 @@ func runProjectStart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Show summary of blocked workstreams
-	for role := range roles {
-		if !spawnedRoles[role] {
-			blocked := scheduler.GetBlockedWorkstreams(role)
-			for _, ws := range blocked {
-				fmt.Printf("  %s:%s blocked by workstreams: %v\n", ws.Role, ws.Workstream, ws.BlockingWorkstreams)
-			}
+	blockedWorkstreams := scheduler.GetBlockedWorkstreams()
+	for _, ws := range blockedWorkstreams {
+		if !spawnedWorkstreams[ws.Workstream] {
+			fmt.Printf("  %s blocked by workstreams: %v\n", ws.Workstream, ws.BlockingWorkstreams)
 		}
 	}
 
@@ -357,7 +339,7 @@ func buildTaskPrompt(t *task.Task) string {
 }
 
 // createAgentManager creates an agent.Manager with all dependencies.
-func createAgentManager(projectRoot string) (*agent.Manager, error) {
+func createAgentManager(_ string) (*agent.Manager, error) {
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -391,9 +373,8 @@ func createAgentManager(projectRoot string) (*agent.Manager, error) {
 		return nil, fmt.Errorf("create agent manager: %w", err)
 	}
 
-	// Set up role manager
-	roleMgr := role.NewManager(projectRoot)
-	agentMgr.SetRoleManager(newRoleManagerAdapter(roleMgr))
+	// Note: Workstream-based configuration is now handled through config.Workstreams
+	// and can be set up via agentMgr.SetWorkstreamManager if needed
 
 	return agentMgr, nil
 }

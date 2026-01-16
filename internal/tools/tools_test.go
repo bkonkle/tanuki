@@ -1,15 +1,18 @@
-package role
+package tools
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/bkonkle/tanuki/internal/config"
 )
 
 func TestFilterTools(t *testing.T) {
 	tests := []struct {
 		name             string
-		role             *Role
-		opts             ToolFilterOptions
+		ws               *config.WorkstreamConfig
+		opts             FilterOptions
 		wantAllowed      []string
 		wantDisallowed   []string
 		wantErrors       bool
@@ -18,49 +21,49 @@ func TestFilterTools(t *testing.T) {
 	}{
 		{
 			name:           "no restrictions",
-			role:           nil,
-			opts:           ToolFilterOptions{},
+			ws:             nil,
+			opts:           FilterOptions{},
 			wantAllowed:    nil,
 			wantDisallowed: []string{}, // Empty slice, not nil
 			wantErrors:     false,
 		},
 		{
-			name: "use role allowed tools",
-			role: &Role{
+			name: "use workstream allowed tools",
+			ws: &config.WorkstreamConfig{
 				AllowedTools: []string{"Read", "Grep", "Bash"},
 			},
-			opts:           ToolFilterOptions{},
+			opts:           FilterOptions{},
 			wantAllowed:    []string{"Bash", "Grep", "Read"}, // Sorted
 			wantDisallowed: []string{},                       // Empty slice, not nil
 			wantErrors:     false,
 		},
 		{
-			name: "use role disallowed tools",
-			role: &Role{
+			name: "use workstream disallowed tools",
+			ws: &config.WorkstreamConfig{
 				DisallowedTools: []string{"Write", "Edit"},
 			},
-			opts:           ToolFilterOptions{},
+			opts:           FilterOptions{},
 			wantAllowed:    nil,
 			wantDisallowed: []string{"Edit", "Write"}, // Sorted
 			wantErrors:     false,
 		},
 		{
-			name: "use role allowed and disallowed",
-			role: &Role{
+			name: "use workstream allowed and disallowed",
+			ws: &config.WorkstreamConfig{
 				AllowedTools:    []string{"Read", "Grep"},
 				DisallowedTools: []string{"Bash"},
 			},
-			opts:           ToolFilterOptions{},
+			opts:           FilterOptions{},
 			wantAllowed:    []string{"Grep", "Read"},
 			wantDisallowed: []string{"Bash"},
 			wantErrors:     false,
 		},
 		{
 			name: "CLI override allowed tools",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				AllowedTools: []string{"Read"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				AllowedTools: []string{"Read", "Write", "Edit"},
 			},
 			wantAllowed:    []string{"Edit", "Read", "Write"},
@@ -69,10 +72,10 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "additive disallowed tools",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				DisallowedTools: []string{"Write"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				DisallowedTools: []string{"Bash", "Edit"},
 			},
 			wantAllowed:    nil,
@@ -81,10 +84,10 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "deduplicate disallowed tools",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				DisallowedTools: []string{"Write", "Bash"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				DisallowedTools: []string{"Bash", "Edit"},
 			},
 			wantAllowed:    nil,
@@ -93,10 +96,10 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "invalid tool in allowed list",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				AllowedTools: []string{"Read", "InvalidTool"},
 			},
-			opts:             ToolFilterOptions{},
+			opts:             FilterOptions{},
 			wantAllowed:      []string{"InvalidTool", "Read"},
 			wantDisallowed:   []string{}, // Empty slice, not nil
 			wantErrors:       true,
@@ -105,10 +108,10 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "invalid tool in disallowed list",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				DisallowedTools: []string{"BadTool"},
 			},
-			opts:             ToolFilterOptions{},
+			opts:             FilterOptions{},
 			wantAllowed:      nil,
 			wantDisallowed:   []string{"BadTool"},
 			wantErrors:       true,
@@ -117,11 +120,11 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "tool in both allowed and disallowed",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				AllowedTools:    []string{"Read", "Write"},
 				DisallowedTools: []string{"Write"},
 			},
-			opts:             ToolFilterOptions{},
+			opts:             FilterOptions{},
 			wantAllowed:      []string{"Read", "Write"},
 			wantDisallowed:   []string{"Write"},
 			wantErrors:       true,
@@ -130,22 +133,22 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "multiple errors",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				AllowedTools:    []string{"Read", "BadTool1"},
 				DisallowedTools: []string{"BadTool2"},
 			},
-			opts:           ToolFilterOptions{},
+			opts:           FilterOptions{},
 			wantAllowed:    []string{"BadTool1", "Read"},
 			wantDisallowed: []string{"BadTool2"},
 			wantErrors:     true,
 			wantErrorCount: 2,
 		},
 		{
-			name: "CLI override replaces role allowed",
-			role: &Role{
+			name: "CLI override replaces workstream allowed",
+			ws: &config.WorkstreamConfig{
 				AllowedTools: []string{"Read", "Grep"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				AllowedTools: []string{"Bash", "Write"},
 			},
 			wantAllowed:    []string{"Bash", "Write"},
@@ -153,11 +156,11 @@ func TestFilterTools(t *testing.T) {
 			wantErrors:     false,
 		},
 		{
-			name: "CLI disallowed adds to role disallowed",
-			role: &Role{
+			name: "CLI disallowed adds to workstream disallowed",
+			ws: &config.WorkstreamConfig{
 				DisallowedTools: []string{"Write"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				DisallowedTools: []string{"Edit"},
 			},
 			wantAllowed:    nil,
@@ -166,11 +169,11 @@ func TestFilterTools(t *testing.T) {
 		},
 		{
 			name: "CLI override with CLI disallowed",
-			role: &Role{
+			ws: &config.WorkstreamConfig{
 				AllowedTools:    []string{"Read"},
 				DisallowedTools: []string{"Write"},
 			},
-			opts: ToolFilterOptions{
+			opts: FilterOptions{
 				AllowedTools:    []string{"Read", "Write", "Edit"},
 				DisallowedTools: []string{"Bash"},
 			},
@@ -181,9 +184,9 @@ func TestFilterTools(t *testing.T) {
 			wantErrorMessage: "appears in both allowed and disallowed",
 		},
 		{
-			name: "empty role with CLI options",
-			role: &Role{},
-			opts: ToolFilterOptions{
+			name: "empty workstream with CLI options",
+			ws:   &config.WorkstreamConfig{},
+			opts: FilterOptions{
 				AllowedTools:    []string{"Read", "Write"},
 				DisallowedTools: []string{"Bash"},
 			},
@@ -192,9 +195,9 @@ func TestFilterTools(t *testing.T) {
 			wantErrors:     false,
 		},
 		{
-			name: "nil role with CLI options",
-			role: nil,
-			opts: ToolFilterOptions{
+			name: "nil workstream with CLI options",
+			ws:   nil,
+			opts: FilterOptions{
 				AllowedTools:    []string{"Read"},
 				DisallowedTools: []string{"Write"},
 			},
@@ -206,7 +209,7 @@ func TestFilterTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FilterTools(tt.role, tt.opts)
+			result := FilterTools(tt.ws, tt.opts)
 
 			// Check allowed tools
 			if !reflect.DeepEqual(result.AllowedTools, tt.wantAllowed) {
@@ -231,7 +234,7 @@ func TestFilterTools(t *testing.T) {
 				if tt.wantErrorMessage != "" {
 					found := false
 					for _, err := range result.Errors {
-						if contains(err.Error(), tt.wantErrorMessage) {
+						if strings.Contains(err.Error(), tt.wantErrorMessage) {
 							found = true
 							break
 						}
@@ -343,30 +346,28 @@ func TestValidTools(t *testing.T) {
 	}
 
 	for tool := range expectedTools {
-		found := false
-		for _, vt := range ValidTools {
-			if vt == tool {
-				found = true
-				break
+		if !IsValidTool(tool) {
+			t.Errorf("IsValidTool(%q) = false, want true", tool)
+		}
+	}
+}
+
+func TestIsValidTool(t *testing.T) {
+	tests := []struct {
+		tool string
+		want bool
+	}{
+		{"Read", true},
+		{"Write", true},
+		{"InvalidTool", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tool, func(t *testing.T) {
+			if got := IsValidTool(tt.tool); got != tt.want {
+				t.Errorf("IsValidTool(%q) = %v, want %v", tt.tool, got, tt.want)
 			}
-		}
-		if !found {
-			t.Errorf("ValidTools missing expected tool: %q", tool)
-		}
+		})
 	}
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

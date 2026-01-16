@@ -16,7 +16,6 @@ type Task struct {
 	// From front matter
 	ID         string            `yaml:"id"`
 	Title      string            `yaml:"title"`
-	Role       string            `yaml:"role"`
 	Workstream string            `yaml:"workstream,omitempty"` // Groups related tasks for sequential execution
 	Priority   Priority          `yaml:"priority"`
 	Status     Status            `yaml:"status"`

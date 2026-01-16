@@ -165,10 +165,10 @@ func (m *TaskDetailsModal) renderDetails() string {
 		statusIcon,
 		statusStyle.Render(m.task.Status)))
 
-	// Role
-	if m.task.Role != "" {
-		roleStyle := lipgloss.NewStyle().Foreground(ColorInfo)
-		sb.WriteString(fmt.Sprintf("Role:     %s\n", roleStyle.Render(m.task.Role)))
+	// Workstream
+	if m.task.Workstream != "" {
+		wsStyle := lipgloss.NewStyle().Foreground(ColorInfo)
+		sb.WriteString(fmt.Sprintf("Workstream: %s\n", wsStyle.Render(m.task.Workstream)))
 	}
 
 	// Priority

@@ -7,36 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Network Connectivity Documentation** - Added guidance for accessing external services
-  - Instructions for configuring network to match docker-compose projects
-  - Examples for connecting containers to tanuki-net network
-  - Network inspection commands for troubleshooting
-
-- **Shared Services Guidance** - Clarified when to use Tanuki services vs project infrastructure
-  - Documented that Tanuki services are for agent-specific tooling (scratch DBs, coordination caches)
-  - Explained that project infrastructure (LocalStack, app databases) should stay in docker-compose
-  - Recommended network configuration approach for accessing existing services
-  - Added clear use-case examples and anti-patterns
-
 ### Changed
 
-- **Builtin Role System Prompts** - Added shared resources guidance
-  - Documents that external resources (Localstack, databases, caches) are shared across agents
-  - Instructs agents to use idempotent naming with unique identifiers to avoid collisions
-  - Emphasizes cleanup of temporary resources to prevent interference
-  - Applied consistently across all six builtin roles (backend, frontend, qa, docs, devops, fullstack)
+- **BREAKING: Removed "roles" concept in favor of unified "workstreams"**
+  - Workstream configuration now in `workstreams:` section of tanuki.yaml
+  - Task files no longer use `role:` field - use `workstream:` for grouping
+  - Per-workstream concurrency management replaces per-role concurrency
+  - CLI: `tanuki spawn --role` replaced with `tanuki spawn --workstream`
 
 - **Default Model** - Changed default Claude model to Haiku 4.5 (claude-haiku-4-5-20251001)
   - Faster execution and lower cost for typical agent tasks
   - Near-frontier intelligence at 3x lower cost than Sonnet 4.5
-  - Users can override in tanuki.yaml or per-role configuration
+  - Users can override in tanuki.yaml or per-workstream configuration
 
 - **Container Runtime** - Switched from custom bkonkle/tanuki image to node:22
   - Removed Dockerfile and image build scripts
   - Updated default image configuration to node:22
   - Simplified deployment and maintenance
+
+### Removed
+
+- **Built-in roles** (backend, frontend, qa, docs, devops, fullstack)
+- **Role management commands** (`role list`, `role show`, `role init`, `role create`)
+- **Role package** (`internal/role/`)
 
 ### Fixed
 

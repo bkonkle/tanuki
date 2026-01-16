@@ -2,22 +2,26 @@
 
 ## Overview
 
-Workstreams group related tasks that should be executed sequentially on the same agent/worktree. They enable:
+Workstreams are the primary organizational unit for tasks in Tanuki. They group related
+tasks that should be executed sequentially on the same agent/worktree. They enable:
 
 1. **Sequential task execution** within a workstream (preserving context)
-2. **Parallel workstream execution** per role (up to role's concurrency limit)
+2. **Parallel workstream execution** across different workstreams (up to concurrency limit)
 3. **Rolling window scheduling** - new workstreams start as others complete
+
+**Note:** The workstream concept is flexible. While discipline-based organization
+(e.g., "api", "frontend", "database") is one approach, workstreams can represent any
+logical grouping: features, components, phases, or any other way you want to organize work.
 
 ## Workstream Definition
 
-### Task Schema Extension
+### Task Schema
 
 ```yaml
 ---
 id: user-auth-001
 title: Implement login endpoint
-role: backend
-workstream: api    # Named workstream (e.g., "api", "auth", "database", "ui")
+workstream: api    # Named workstream (e.g., "api", "auth", "database", "ui", "feature-x")
 priority: high
 status: pending
 depends_on: []
@@ -27,7 +31,6 @@ depends_on: []
 ### Workstream Semantics
 
 - **Identifier**: String, defaults to task ID if not specified
-- **Scope**: Per-role (workstreams don't cross roles)
 - **Ordering**: Tasks within a workstream are ordered by:
   1. Dependencies (`depends_on`)
   2. Priority
@@ -40,28 +43,25 @@ When `workstream` is not specified in task frontmatter:
 1. If task has dependencies: inherit workstream from first dependency
 2. Otherwise: use task ID as a single-task workstream
 
-## Role Configuration Extension
+## Workstream Configuration
 
 ### tanuki.yaml Structure
 
 ```yaml
-roles:
-  backend:
-    concurrency: 2              # Max concurrent workstreams for this role
-    system_prompt: |            # Role-specific prompt (optional)
-      You are a backend developer...
+workstreams:
+  api:
+    concurrency: 2              # Max concurrent agents for this workstream
+    system_prompt: |            # Workstream-specific prompt (optional)
+      You are working on API development...
     system_prompt_file: ""      # Alternative: path to prompt file
 ```
 
-### Precedence
+### Defaults
 
-Role configuration merges from multiple sources (highest to lowest):
+If a workstream is not explicitly configured, it uses default settings:
 
-1. **tanuki.yaml `roles` section** - project-level config
-2. **.tanuki/roles/<name>.yaml** - role definition files
-3. **Builtin roles** - embedded defaults
-
-For each field, the first non-empty value wins.
+- Concurrency: 1 (one agent at a time)
+- No additional system prompt
 
 ## Workstream Scheduler
 
@@ -69,7 +69,6 @@ For each field, the first non-empty value wins.
 
 ```go
 type WorkstreamState struct {
-    Role        string
     Workstream  string
     AgentName   string      // Assigned agent (owns worktree)
     Status      string      // "active", "completed", "failed"
@@ -82,11 +81,11 @@ type WorkstreamState struct {
 ### Scheduling Algorithm
 
 ```
-For each role:
-  1. Get role concurrency limit (default: 1)
-  2. Get active workstreams for role
+For each workstream:
+  1. Get workstream concurrency limit (default: 1)
+  2. Get active agents for workstream
   3. If active < limit:
-     - Find next pending workstream (first pending task by priority)
+     - Find next pending task by priority
      - Assign to idle agent (or spawn new if needed)
      - Mark workstream as active
   4. When workstream completes all tasks:
@@ -96,9 +95,9 @@ For each role:
 
 ### Rolling Window Behavior
 
-- Each role has `concurrency` slots for active workstreams
+- Each workstream has `concurrency` slots for active agents
 - When a workstream completes, its slot opens for the next
-- Agents are reused across workstreams (within same role)
+- Agents can be reused across workstreams
 
 ## Workstream Completion
 
@@ -128,7 +127,7 @@ When budget is hit:
 
 1. Emit current artifacts (commit, PR summary, etc.)
 2. Save workstream state
-3. Start fresh Ralph instance on same worktree
+3. Start fresh agent instance on same worktree
 4. Resume from next pending task in workstream
 
 ## Project Document
@@ -168,7 +167,7 @@ and task format conventions.
 The project document is:
 
 1. Copied to `.tanuki/context/` in agent worktree
-2. Referenced in role system prompts
+2. Referenced in workstream system prompts
 3. Loaded as initial context for new agent sessions
 
 ## Migration
@@ -181,45 +180,3 @@ Tasks without explicit `workstream` field:
 2. Otherwise: use task ID (single-task workstream)
 
 This preserves existing behavior while enabling workstream features.
-
-### Removal of Async Mode
-
-The `--ralph` flag and async execution are removed:
-
-- `tanuki run` always uses Ralph loop
-- Default completion signal: "DONE" (configurable)
-- Default max iterations: 30 (configurable)
-
-Tasks without completion criteria get default Ralph behavior.
-
-## Implementation Phases
-
-### Phase 1: Schema & Config
-- Add `workstream` to Task struct
-- Add `roles` section to Config
-- Add `concurrency` to Role struct
-
-### Phase 2: Role Merging
-- Implement config → role merging
-- Update role manager to use merged config
-- Update CLI role commands
-
-### Phase 3: Workstream Scheduler
-- Implement WorkstreamState tracking
-- Add workstream-aware queue
-- Implement rolling window scheduler
-
-### Phase 4: Ralph-Only Mode
-- Remove `--ralph` flag (always on)
-- Add default completion behavior
-- Update task runner
-
-### Phase 5: Context Budget
-- Add turn/iteration tracking
-- Implement session handoff
-- Preserve workstream state across sessions
-
-### Phase 6: Project Doc & CLI
-- Add project.md to init
-- Load into agent context
-- Update status/dashboard for workstreams

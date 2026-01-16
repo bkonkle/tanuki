@@ -17,17 +17,17 @@ func TestSerialize(t *testing.T) {
 		{
 			name: "minimal task",
 			task: &Task{
-				ID:      "TASK-001",
-				Title:   "Test Task",
-				Role:    "backend",
-				Content: "# Test\n\nDo the thing.",
+				ID:         "TASK-001",
+				Title:      "Test Task",
+				Workstream: "backend",
+				Content:    "# Test\n\nDo the thing.",
 			},
 			wantErr: false,
 			wantContain: []string{
 				"---",
 				"id: TASK-001",
 				"title: Test Task",
-				"role: backend",
+				"workstream: backend",
 				"# Test",
 				"Do the thing.",
 			},
@@ -37,7 +37,7 @@ func TestSerialize(t *testing.T) {
 			task: &Task{
 				ID:         "TASK-002",
 				Title:      "Full Task",
-				Role:       "qa",
+				Workstream: "qa",
 				Priority:   PriorityHigh,
 				Status:     StatusInProgress,
 				DependsOn:  []string{"TASK-001"},
@@ -102,11 +102,11 @@ func TestWriteFile(t *testing.T) {
 
 	t.Run("write and read back", func(t *testing.T) {
 		task := &Task{
-			ID:       "TASK-001",
-			Title:    "Test Task",
-			Role:     "backend",
-			Priority: PriorityHigh,
-			Status:   StatusPending,
+			ID:         "TASK-001",
+			Title:      "Test Task",
+			Workstream: "backend",
+			Priority:   PriorityHigh,
+			Status:     StatusPending,
 			Completion: &CompletionConfig{
 				Verify: "npm test",
 			},
@@ -137,8 +137,8 @@ func TestWriteFile(t *testing.T) {
 		if parsed.Title != task.Title {
 			t.Errorf("Title = %q, want %q", parsed.Title, task.Title)
 		}
-		if parsed.Role != task.Role {
-			t.Errorf("Role = %q, want %q", parsed.Role, task.Role)
+		if parsed.Workstream != task.Workstream {
+			t.Errorf("Workstream = %q, want %q", parsed.Workstream, task.Workstream)
 		}
 		if parsed.Priority != task.Priority {
 			t.Errorf("Priority = %q, want %q", parsed.Priority, task.Priority)
@@ -164,9 +164,9 @@ func TestWriteFile(t *testing.T) {
 
 	t.Run("missing file path", func(t *testing.T) {
 		task := &Task{
-			ID:    "TASK-001",
-			Title: "Test",
-			Role:  "backend",
+			ID:         "TASK-001",
+			Title:      "Test",
+			Workstream: "backend",
 		}
 		if err := WriteFile(task); err == nil {
 			t.Error("WriteFile() with empty FilePath should return error")
@@ -179,13 +179,13 @@ func TestWriteFile_UpdateStatus(t *testing.T) {
 
 	// Create initial task
 	task := &Task{
-		ID:       "TASK-001",
-		Title:    "Test Task",
-		Role:     "backend",
-		Priority: PriorityHigh,
-		Status:   StatusPending,
-		Content:  "Content",
-		FilePath: filepath.Join(dir, "task-001.md"),
+		ID:         "TASK-001",
+		Title:      "Test Task",
+		Workstream: "backend",
+		Priority:   PriorityHigh,
+		Status:     StatusPending,
+		Content:    "Content",
+		FilePath:   filepath.Join(dir, "task-001.md"),
 	}
 
 	// Write initial file
@@ -221,7 +221,7 @@ func TestSerialize_RoundTrip(t *testing.T) {
 	original := &Task{
 		ID:         "TASK-001",
 		Title:      "Test Task",
-		Role:       "backend",
+		Workstream: "backend",
 		Priority:   PriorityHigh,
 		Status:     StatusInProgress,
 		DependsOn:  []string{"TASK-000"},
@@ -253,6 +253,9 @@ func TestSerialize_RoundTrip(t *testing.T) {
 	}
 	if parsed.Title != original.Title {
 		t.Errorf("Title = %q, want %q", parsed.Title, original.Title)
+	}
+	if parsed.Workstream != original.Workstream {
+		t.Errorf("Workstream = %q, want %q", parsed.Workstream, original.Workstream)
 	}
 	if parsed.Priority != original.Priority {
 		t.Errorf("Priority = %q, want %q", parsed.Priority, original.Priority)

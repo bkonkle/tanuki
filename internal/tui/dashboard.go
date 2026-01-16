@@ -26,7 +26,7 @@ const (
 type AgentInfo struct {
 	Name        string
 	Status      string
-	Role        string
+	Workstream  string
 	CurrentTask string
 	Branch      string
 	Uptime      time.Duration
@@ -37,7 +37,7 @@ type TaskInfo struct {
 	ID             string
 	Title          string
 	Status         string
-	Role           string
+	Workstream     string
 	AssignedTo     string
 	Priority       string
 	FailureMessage string
@@ -71,24 +71,24 @@ type TaskProvider interface {
 
 // KeyMap defines the key bindings for the dashboard.
 type KeyMap struct {
-	Quit       key.Binding
-	Help       key.Binding
-	Tab        key.Binding
-	ShiftTab   key.Binding
-	Up         key.Binding
-	Down       key.Binding
-	Enter      key.Binding
-	Stop       key.Binding
-	Start      key.Binding
-	Attach     key.Binding
-	Diff       key.Binding
-	Follow     key.Binding
-	Filter     key.Binding
-	FilterRole key.Binding
-	Clear      key.Binding
-	Pause      key.Binding
-	Top        key.Binding
-	Bottom     key.Binding
+	Quit             key.Binding
+	Help             key.Binding
+	Tab              key.Binding
+	ShiftTab         key.Binding
+	Up               key.Binding
+	Down             key.Binding
+	Enter            key.Binding
+	Stop             key.Binding
+	Start            key.Binding
+	Attach           key.Binding
+	Diff             key.Binding
+	Follow           key.Binding
+	Filter           key.Binding
+	FilterWorkstream key.Binding
+	Clear            key.Binding
+	Pause            key.Binding
+	Top              key.Binding
+	Bottom           key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings.
@@ -146,9 +146,9 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("f"),
 			key.WithHelp("f", "filter status"),
 		),
-		FilterRole: key.NewBinding(
+		FilterWorkstream: key.NewBinding(
 			key.WithKeys("F"),
-			key.WithHelp("F", "filter role"),
+			key.WithHelp("F", "filter workstream"),
 		),
 		Clear: key.NewBinding(
 			key.WithKeys("c"),
@@ -187,7 +187,7 @@ type Model struct {
 	showTaskDetails  bool
 	taskDetailsModal *TaskDetailsModal
 	statusFilter     string
-	roleFilter       string
+	workstreamFilter string
 	statusMsg        string
 	errorMsg         string
 
@@ -218,19 +218,19 @@ type Model struct {
 // NewModel creates a new dashboard model.
 func NewModel(agentProvider AgentProvider, taskProvider TaskProvider) Model {
 	return Model{
-		agents:          make([]*AgentInfo, 0),
-		tasks:           make([]*TaskInfo, 0),
-		logs:            make([]LogLine, 0),
-		activePane:      PaneAgents,
-		logFollow:       true,
-		statusFilter:    "all",
-		roleFilter:      "all",
-		keys:            DefaultKeyMap(),
-		agentProvider:   agentProvider,
-		taskProvider:    taskProvider,
-		maxLogs:         1000,
-		logCheckTicker:  100 * time.Millisecond,
-		refreshInterval: time.Second,
+		agents:           make([]*AgentInfo, 0),
+		tasks:            make([]*TaskInfo, 0),
+		logs:             make([]LogLine, 0),
+		activePane:       PaneAgents,
+		logFollow:        true,
+		statusFilter:     "all",
+		workstreamFilter: "all",
+		keys:             DefaultKeyMap(),
+		agentProvider:    agentProvider,
+		taskProvider:     taskProvider,
+		maxLogs:          1000,
+		logCheckTicker:   100 * time.Millisecond,
+		refreshInterval:  time.Second,
 	}
 }
 
@@ -410,9 +410,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case key.Matches(msg, m.keys.FilterRole):
+		case key.Matches(msg, m.keys.FilterWorkstream):
 			if m.activePane == PaneTasks {
-				m.cycleRoleFilter()
+				m.cycleWorkstreamFilter()
 			}
 			return m, nil
 
@@ -607,34 +607,34 @@ func (m *Model) cycleStatusFilter() {
 	m.statusFilter = "all"
 }
 
-// cycleRoleFilter cycles through role filter options.
-func (m *Model) cycleRoleFilter() {
-	roles := m.getUniqueRoles()
-	roles = append([]string{"all"}, roles...)
+// cycleWorkstreamFilter cycles through workstream filter options.
+func (m *Model) cycleWorkstreamFilter() {
+	workstreams := m.getUniqueWorkstreams()
+	workstreams = append([]string{"all"}, workstreams...)
 
-	for i, r := range roles {
-		if r == m.roleFilter {
-			m.roleFilter = roles[(i+1)%len(roles)]
+	for i, ws := range workstreams {
+		if ws == m.workstreamFilter {
+			m.workstreamFilter = workstreams[(i+1)%len(workstreams)]
 			m.taskCursor = 0
 			return
 		}
 	}
-	m.roleFilter = "all"
+	m.workstreamFilter = "all"
 }
 
-// getUniqueRoles returns unique roles from tasks.
-func (m *Model) getUniqueRoles() []string {
-	roleSet := make(map[string]bool)
+// getUniqueWorkstreams returns unique workstreams from tasks.
+func (m *Model) getUniqueWorkstreams() []string {
+	wsSet := make(map[string]bool)
 	for _, t := range m.tasks {
-		if t.Role != "" {
-			roleSet[t.Role] = true
+		if t.Workstream != "" {
+			wsSet[t.Workstream] = true
 		}
 	}
-	roles := make([]string, 0, len(roleSet))
-	for r := range roleSet {
-		roles = append(roles, r)
+	workstreams := make([]string, 0, len(wsSet))
+	for ws := range wsSet {
+		workstreams = append(workstreams, ws)
 	}
-	return roles
+	return workstreams
 }
 
 // filteredTasks returns tasks matching current filters.
@@ -644,7 +644,7 @@ func (m *Model) filteredTasks() []*TaskInfo {
 		if m.statusFilter != "all" && t.Status != m.statusFilter {
 			continue
 		}
-		if m.roleFilter != "all" && t.Role != m.roleFilter {
+		if m.workstreamFilter != "all" && t.Workstream != m.workstreamFilter {
 			continue
 		}
 		filtered = append(filtered, t)
@@ -803,13 +803,13 @@ func (m Model) renderTaskPane(width, height int) string {
 	sb.WriteString("\n")
 
 	// Filter indicator
-	if m.statusFilter != "all" || m.roleFilter != "all" {
+	if m.statusFilter != "all" || m.workstreamFilter != "all" {
 		var filters []string
 		if m.statusFilter != "all" {
 			filters = append(filters, fmt.Sprintf("status:%s", m.statusFilter))
 		}
-		if m.roleFilter != "all" {
-			filters = append(filters, fmt.Sprintf("role:%s", m.roleFilter))
+		if m.workstreamFilter != "all" {
+			filters = append(filters, fmt.Sprintf("workstream:%s", m.workstreamFilter))
 		}
 		filterStr := MutedStyle.Render(fmt.Sprintf("[Filter: %s]", strings.Join(filters, ", ")))
 		sb.WriteString(filterStr)
@@ -845,8 +845,8 @@ func (m Model) renderTaskPane(width, height int) string {
 			Width(18).
 			Render(Truncate(task.Title, 17))
 
-		// Role
-		role := InfoStyle.Width(10).Render(Truncate(task.Role, 9))
+		// Workstream
+		workstream := InfoStyle.Width(10).Render(Truncate(task.Workstream, 9))
 
 		// Assigned agent
 		assigned := ""
@@ -854,7 +854,7 @@ func (m Model) renderTaskPane(width, height int) string {
 			assigned = WarningStyle.Render(fmt.Sprintf("→ %s", Truncate(task.AssignedTo, 10)))
 		}
 
-		line := fmt.Sprintf("%s%s %s %s %s %s", prefix, icon, id, title, role, assigned)
+		line := fmt.Sprintf("%s%s %s %s %s %s", prefix, icon, id, title, workstream, assigned)
 		if i == m.taskCursor && m.activePane == PaneTasks {
 			line = SelectedStyle.Render(line)
 		}
@@ -983,7 +983,7 @@ func (m Model) renderHelp() string {
 			keys: []string{
 				"Enter            Show task details",
 				"f                Cycle status filter",
-				"F                Cycle role filter",
+				"F                Cycle workstream filter",
 			},
 		},
 		{

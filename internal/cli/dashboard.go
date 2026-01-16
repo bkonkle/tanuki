@@ -96,7 +96,7 @@ func (a *agentProviderAdapter) ListAgents() ([]*tui.AgentInfo, error) {
 		result[i] = &tui.AgentInfo{
 			Name:        ag.Name,
 			Status:      string(ag.Status),
-			Role:        ag.Role,
+			Workstream:  ag.Workstream,
 			CurrentTask: currentTask,
 			Branch:      ag.Branch,
 		}
@@ -131,7 +131,7 @@ func (t *taskProviderAdapter) ListTasks() ([]*tui.TaskInfo, error) {
 			ID:         tk.ID,
 			Title:      tk.Title,
 			Status:     string(tk.Status),
-			Role:       tk.Role,
+			Workstream: tk.GetWorkstream(),
 			AssignedTo: tk.AssignedTo,
 			Priority:   string(tk.Priority),
 		}

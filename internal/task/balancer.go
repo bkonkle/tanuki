@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// Balancer handles task-to-agent assignment based on role matching and workload.
+// Balancer handles task-to-agent assignment based on workstream matching and workload.
 // It tracks active task counts per agent and selects the least-loaded agent
 // when assigning new tasks.
 type Balancer struct {
@@ -17,9 +17,9 @@ type Balancer struct {
 // Agent represents an agent for balancing purposes.
 // This is an interface-based type that doesn't depend on the concrete agent implementation.
 type Agent struct {
-	Name   string
-	Role   string
-	Status string // idle, working, stopped
+	Name       string
+	Workstream string
+	Status     string // idle, working, stopped
 }
 
 // NewBalancer creates a new workload balancer.
@@ -29,23 +29,25 @@ func NewBalancer() *Balancer {
 	}
 }
 
-// AssignTask selects the best agent for a task based on role matching and workload.
+// AssignTask selects the best agent for a task based on workstream matching and workload.
 // Returns an error if no suitable agent is available.
 func (b *Balancer) AssignTask(t *Task, agents []*Agent) (*Agent, error) {
 	if t == nil {
 		return nil, fmt.Errorf("task is nil")
 	}
 
-	// Filter by role
-	candidates := b.filterByRole(agents, t.Role)
+	ws := t.GetWorkstream()
+
+	// Filter by workstream
+	candidates := b.filterByWorkstream(agents, ws)
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no agents available for role %q", t.Role)
+		return nil, fmt.Errorf("no agents available for workstream %q", ws)
 	}
 
 	// Filter by availability
 	available := b.filterAvailable(candidates)
 	if len(available) == 0 {
-		return nil, fmt.Errorf("no idle agents for role %q", t.Role)
+		return nil, fmt.Errorf("no idle agents for workstream %q", ws)
 	}
 
 	// Select least loaded
@@ -54,10 +56,10 @@ func (b *Balancer) AssignTask(t *Task, agents []*Agent) (*Agent, error) {
 	return selected, nil
 }
 
-func (b *Balancer) filterByRole(agents []*Agent, role string) []*Agent {
+func (b *Balancer) filterByWorkstream(agents []*Agent, workstream string) []*Agent {
 	var result []*Agent
 	for _, ag := range agents {
-		if ag.Role == role {
+		if ag.Workstream == workstream {
 			result = append(result, ag)
 		}
 	}
@@ -138,16 +140,16 @@ func (b *Balancer) ResetWorkload(agentName string) {
 	delete(b.workloads, agentName)
 }
 
-// GetIdleAgents returns idle agents, optionally filtered by role.
-// If role is empty, returns all idle agents.
-func (b *Balancer) GetIdleAgents(agents []*Agent, role string) []*Agent {
+// GetIdleAgents returns idle agents, optionally filtered by workstream.
+// If workstream is empty, returns all idle agents.
+func (b *Balancer) GetIdleAgents(agents []*Agent, workstream string) []*Agent {
 	result := make([]*Agent, 0, len(agents))
 
 	for _, ag := range agents {
 		if ag.Status != "idle" {
 			continue
 		}
-		if role != "" && ag.Role != role {
+		if workstream != "" && ag.Workstream != workstream {
 			continue
 		}
 		result = append(result, ag)
@@ -156,12 +158,12 @@ func (b *Balancer) GetIdleAgents(agents []*Agent, role string) []*Agent {
 	return result
 }
 
-// GetAgentsByRole returns all agents with a specific role.
-func (b *Balancer) GetAgentsByRole(agents []*Agent, role string) []*Agent {
+// GetAgentsByWorkstream returns all agents with a specific workstream.
+func (b *Balancer) GetAgentsByWorkstream(agents []*Agent, workstream string) []*Agent {
 	var result []*Agent
 
 	for _, ag := range agents {
-		if ag.Role == role {
+		if ag.Workstream == workstream {
 			result = append(result, ag)
 		}
 	}
@@ -169,29 +171,29 @@ func (b *Balancer) GetAgentsByRole(agents []*Agent, role string) []*Agent {
 	return result
 }
 
-// GetRolesNeeded returns roles that have pending tasks but no agents.
-func (b *Balancer) GetRolesNeeded(tasks []*Task, agents []*Agent) []string {
-	// Roles with pending tasks
-	taskRoles := make(map[string]bool)
+// GetWorkstreamsNeeded returns workstreams that have pending tasks but no agents.
+func (b *Balancer) GetWorkstreamsNeeded(tasks []*Task, agents []*Agent) []string {
+	// Workstreams with pending tasks
+	taskWorkstreams := make(map[string]bool)
 	for _, t := range tasks {
 		if t.Status == StatusPending || t.Status == StatusBlocked {
-			taskRoles[t.Role] = true
+			taskWorkstreams[t.GetWorkstream()] = true
 		}
 	}
 
-	// Roles with agents
-	agentRoles := make(map[string]bool)
+	// Workstreams with agents
+	agentWorkstreams := make(map[string]bool)
 	for _, ag := range agents {
-		if ag.Role != "" {
-			agentRoles[ag.Role] = true
+		if ag.Workstream != "" {
+			agentWorkstreams[ag.Workstream] = true
 		}
 	}
 
-	// Find missing roles
+	// Find missing workstreams
 	var needed []string
-	for role := range taskRoles {
-		if !agentRoles[role] {
-			needed = append(needed, role)
+	for ws := range taskWorkstreams {
+		if !agentWorkstreams[ws] {
+			needed = append(needed, ws)
 		}
 	}
 
@@ -269,26 +271,28 @@ func (b *BalancerWithStrategy) AssignTaskWithStrategy(t *Task, agents []*Agent) 
 		return nil, fmt.Errorf("task is nil")
 	}
 
-	// Filter by role
-	candidates := b.filterByRole(agents, t.Role)
+	ws := t.GetWorkstream()
+
+	// Filter by workstream
+	candidates := b.filterByWorkstream(agents, ws)
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no agents available for role %q", t.Role)
+		return nil, fmt.Errorf("no agents available for workstream %q", ws)
 	}
 
 	// Filter by availability
 	available := b.filterAvailable(candidates)
 	if len(available) == 0 {
-		return nil, fmt.Errorf("no idle agents for role %q", t.Role)
+		return nil, fmt.Errorf("no idle agents for workstream %q", ws)
 	}
 
 	// Select based on strategy
-	return b.selectAgent(available, t.Role), nil
+	return b.selectAgent(available, ws), nil
 }
 
-func (b *BalancerWithStrategy) selectAgent(agents []*Agent, role string) *Agent {
+func (b *BalancerWithStrategy) selectAgent(agents []*Agent, workstream string) *Agent {
 	switch b.strategy {
 	case StrategyRoundRobin:
-		return b.selectRoundRobin(agents, role)
+		return b.selectRoundRobin(agents, workstream)
 	case StrategyRandom:
 		return b.selectRandom(agents)
 	default:
@@ -296,7 +300,7 @@ func (b *BalancerWithStrategy) selectAgent(agents []*Agent, role string) *Agent 
 	}
 }
 
-func (b *BalancerWithStrategy) selectRoundRobin(agents []*Agent, role string) *Agent {
+func (b *BalancerWithStrategy) selectRoundRobin(agents []*Agent, workstream string) *Agent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -304,9 +308,9 @@ func (b *BalancerWithStrategy) selectRoundRobin(agents []*Agent, role string) *A
 		return nil
 	}
 
-	idx := b.roundRobin[role]
+	idx := b.roundRobin[workstream]
 	selected := agents[idx%len(agents)]
-	b.roundRobin[role] = idx + 1
+	b.roundRobin[workstream] = idx + 1
 
 	return selected
 }

@@ -73,8 +73,8 @@ type GitStatus struct {
 type SpawnOptions struct {
 	// Branch specifies an existing branch to use (optional)
 	Branch string
-	// Role specifies the role to assign to the agent (optional)
-	Role string
+	// Workstream specifies the workstream to assign to the agent (optional)
+	Workstream string
 }
 
 // RemoveOptions configures agent removal.
@@ -166,8 +166,8 @@ type StateManager interface {
 // State is an alias for state.State for convenience.
 type State = state.State
 
-// RoleInfo contains role information needed by the agent manager.
-type RoleInfo struct {
+// WorkstreamInfo contains workstream information needed by the agent manager.
+type WorkstreamInfo struct {
 	Name            string
 	SystemPrompt    string
 	AllowedTools    []string
@@ -175,21 +175,21 @@ type RoleInfo struct {
 	ContextFiles    []string
 }
 
-// RoleManager defines the interface for role operations.
-type RoleManager interface {
-	GetRoleInfo(name string) (*RoleInfo, error)
+// WorkstreamManager defines the interface for workstream operations.
+type WorkstreamManager interface {
+	GetWorkstreamInfo(name string) (*WorkstreamInfo, error)
 }
 
 // Manager handles agent lifecycle operations, coordinating Git worktrees,
 // Docker containers, persistent state, and Claude Code execution.
 type Manager struct {
-	config          *config.Config
-	git             GitManager
-	docker          DockerManager
-	state           StateManager
-	executor        ClaudeExecutor
-	roleManager     RoleManager
-	serviceInjector ServiceInjector
+	config            *config.Config
+	git               GitManager
+	docker            DockerManager
+	state             StateManager
+	executor          ClaudeExecutor
+	workstreamManager WorkstreamManager
+	serviceInjector   ServiceInjector
 }
 
 // NewManager creates a new agent manager.
@@ -216,20 +216,20 @@ func NewManager(cfg *config.Config, git GitManager, docker DockerManager, state 
 	}
 
 	return &Manager{
-		config:          cfg,
-		git:             git,
-		docker:          docker,
-		state:           state,
-		executor:        executor,
-		roleManager:     nil, // Will be set via SetRoleManager
-		serviceInjector: nil, // Will be set via SetServiceInjector
+		config:            cfg,
+		git:               git,
+		docker:            docker,
+		state:             state,
+		executor:          executor,
+		workstreamManager: nil, // Will be set via SetWorkstreamManager
+		serviceInjector:   nil, // Will be set via SetServiceInjector
 	}, nil
 }
 
-// SetRoleManager sets the role manager for this agent manager.
-// This is optional and allows role-based agent spawning.
-func (m *Manager) SetRoleManager(roleManager RoleManager) {
-	m.roleManager = roleManager
+// SetWorkstreamManager sets the workstream manager for this agent manager.
+// This is optional and allows workstream-based agent spawning.
+func (m *Manager) SetWorkstreamManager(workstreamManager WorkstreamManager) {
+	m.workstreamManager = workstreamManager
 }
 
 // SetServiceInjector sets the service injector for this agent manager.
@@ -257,22 +257,22 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		return nil, fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// 4. Handle role if specified
-	var roleInfo *RoleInfo
-	if opts.Role != "" {
-		if m.roleManager == nil {
+	// 4. Handle workstream if specified
+	var wsInfo *WorkstreamInfo
+	if opts.Workstream != "" {
+		if m.workstreamManager == nil {
 			_ = m.git.RemoveWorktree(name, true) // Rollback
-			return nil, fmt.Errorf("role specified but role manager not configured")
+			return nil, fmt.Errorf("workstream specified but workstream manager not configured")
 		}
 
-		roleInfo, err = m.roleManager.GetRoleInfo(opts.Role)
+		wsInfo, err = m.workstreamManager.GetWorkstreamInfo(opts.Workstream)
 		if err != nil {
 			_ = m.git.RemoveWorktree(name, true) // Rollback
-			return nil, fmt.Errorf("failed to get role %q: %w", opts.Role, err)
+			return nil, fmt.Errorf("failed to get workstream %q: %w", opts.Workstream, err)
 		}
 
 		// Copy context files if specified
-		if len(roleInfo.ContextFiles) > 0 {
+		if len(wsInfo.ContextFiles) > 0 {
 			// Get project root from current working directory
 			projectRoot, cwdErr := os.Getwd()
 			if cwdErr != nil {
@@ -280,7 +280,7 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 				return nil, fmt.Errorf("failed to get project root: %w", cwdErr)
 			}
 			contextMgr := context.NewManager(projectRoot, false)
-			result, copyErr := contextMgr.CopyContextFiles(worktreePath, roleInfo.ContextFiles)
+			result, copyErr := contextMgr.CopyContextFiles(worktreePath, wsInfo.ContextFiles)
 			if copyErr != nil {
 				_ = m.git.RemoveWorktree(name, true) // Rollback
 				return nil, fmt.Errorf("failed to copy context files: %w", copyErr)
@@ -289,8 +289,8 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 			_ = result // Result contains Copied, Skipped, and Errors for logging if needed
 		}
 
-		// Generate CLAUDE.md with role system prompt
-		if genErr := m.generateClaudeMD(worktreePath, roleInfo); genErr != nil {
+		// Generate CLAUDE.md with workstream system prompt
+		if genErr := m.generateClaudeMD(worktreePath, wsInfo); genErr != nil {
 			_ = m.git.RemoveWorktree(name, true) // Rollback
 			return nil, fmt.Errorf("failed to generate CLAUDE.md: %w", genErr)
 		}
@@ -344,11 +344,11 @@ func (m *Manager) Spawn(name string, opts SpawnOptions) (*Agent, error) {
 		UpdatedAt:     time.Now(),
 	}
 
-	// Store role information if role was assigned
-	if roleInfo != nil {
-		agent.Role = roleInfo.Name
-		agent.AllowedTools = roleInfo.AllowedTools
-		agent.DisallowedTools = roleInfo.DisallowedTools
+	// Store workstream information if workstream was assigned
+	if wsInfo != nil {
+		agent.Workstream = wsInfo.Name
+		agent.AllowedTools = wsInfo.AllowedTools
+		agent.DisallowedTools = wsInfo.DisallowedTools
 	}
 
 	if err := m.state.SetAgent(agent); err != nil {
@@ -644,22 +644,22 @@ func validateAgentName(name string) error {
 	return nil
 }
 
-// generateClaudeMD creates a CLAUDE.md file in the worktree with role-specific instructions.
-func (m *Manager) generateClaudeMD(worktreePath string, roleInfo *RoleInfo) error {
+// generateClaudeMD creates a CLAUDE.md file in the worktree with workstream-specific instructions.
+func (m *Manager) generateClaudeMD(worktreePath string, wsInfo *WorkstreamInfo) error {
 	claudeMDPath := filepath.Join(worktreePath, "CLAUDE.md")
 
 	var content strings.Builder
 
-	// Add role system prompt as agent instructions
+	// Add workstream system prompt as agent instructions
 	content.WriteString("# Agent Instructions\n\n")
-	content.WriteString(roleInfo.SystemPrompt)
+	content.WriteString(wsInfo.SystemPrompt)
 	content.WriteString("\n")
 
 	// Add context file references if any (will be populated later by context manager)
-	if len(roleInfo.ContextFiles) > 0 {
+	if len(wsInfo.ContextFiles) > 0 {
 		content.WriteString("\n## Context Files\n\n")
 		content.WriteString("Review these files for project context:\n\n")
-		for _, file := range roleInfo.ContextFiles {
+		for _, file := range wsInfo.ContextFiles {
 			content.WriteString(fmt.Sprintf("- %s\n", file))
 		}
 	}

@@ -9,7 +9,7 @@ import (
 func TestQueue_Enqueue(t *testing.T) {
 	q := NewQueue()
 
-	task := &Task{ID: "T1", Role: "backend", Priority: PriorityHigh}
+	task := &Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh}
 	err := q.Enqueue(task)
 
 	if err != nil {
@@ -20,8 +20,8 @@ func TestQueue_Enqueue(t *testing.T) {
 		t.Errorf("Size() = %d, want 1", q.Size())
 	}
 
-	if q.SizeByRole("backend") != 1 {
-		t.Errorf("SizeByRole(backend) = %d, want 1", q.SizeByRole("backend"))
+	if q.SizeByWorkstream("backend") != 1 {
+		t.Errorf("SizeByWorkstream(backend) = %d, want 1", q.SizeByWorkstream("backend"))
 	}
 }
 
@@ -34,13 +34,19 @@ func TestQueue_EnqueueNilTask(t *testing.T) {
 	}
 }
 
-func TestQueue_EnqueueNoRole(t *testing.T) {
+func TestQueue_EnqueueNoWorkstream(t *testing.T) {
 	q := NewQueue()
 
+	// Task with no workstream uses ID as workstream
 	task := &Task{ID: "T1", Priority: PriorityHigh}
 	err := q.Enqueue(task)
-	if err == nil {
-		t.Error("Enqueue() should return error for task with no role")
+	if err != nil {
+		t.Errorf("Enqueue() should succeed for task with no workstream (uses ID): %v", err)
+	}
+
+	// Should be queued under the task ID as workstream
+	if q.SizeByWorkstream("T1") != 1 {
+		t.Errorf("SizeByWorkstream(T1) = %d, want 1", q.SizeByWorkstream("T1"))
 	}
 }
 
@@ -48,10 +54,10 @@ func TestQueue_PriorityOrder(t *testing.T) {
 	q := NewQueue()
 
 	// Add in random priority order
-	_ = q.Enqueue(&Task{ID: "low", Role: "backend", Priority: PriorityLow})
-	_ = q.Enqueue(&Task{ID: "critical", Role: "backend", Priority: PriorityCritical})
-	_ = q.Enqueue(&Task{ID: "medium", Role: "backend", Priority: PriorityMedium})
-	_ = q.Enqueue(&Task{ID: "high", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "low", Workstream: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "critical", Workstream: "backend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "medium", Workstream: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "high", Workstream: "backend", Priority: PriorityHigh})
 
 	// Should come out in priority order
 	expected := []string{"critical", "high", "medium", "low"}
@@ -66,16 +72,16 @@ func TestQueue_PriorityOrder(t *testing.T) {
 	}
 }
 
-func TestQueue_RoleIsolation(t *testing.T) {
+func TestQueue_WorkstreamIsolation(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "be1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "fe1", Role: "frontend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "be2", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "be1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "fe1", Workstream: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "be2", Workstream: "backend", Priority: PriorityMedium})
 
 	// Backend should only see backend tasks
-	if q.SizeByRole("backend") != 2 {
-		t.Errorf("SizeByRole(backend) = %d, want 2", q.SizeByRole("backend"))
+	if q.SizeByWorkstream("backend") != 2 {
+		t.Errorf("SizeByWorkstream(backend) = %d, want 2", q.SizeByWorkstream("backend"))
 	}
 
 	task, _ := q.Dequeue("backend")
@@ -84,15 +90,15 @@ func TestQueue_RoleIsolation(t *testing.T) {
 	}
 
 	// Frontend unaffected
-	if q.SizeByRole("frontend") != 1 {
-		t.Errorf("SizeByRole(frontend) = %d, want 1", q.SizeByRole("frontend"))
+	if q.SizeByWorkstream("frontend") != 1 {
+		t.Errorf("SizeByWorkstream(frontend) = %d, want 1", q.SizeByWorkstream("frontend"))
 	}
 }
 
 func TestQueue_Peek(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
 
 	// Peek should not remove
 	task1, _ := q.Peek("backend")
@@ -107,21 +113,21 @@ func TestQueue_Peek(t *testing.T) {
 	}
 }
 
-func TestQueue_EmptyRole(t *testing.T) {
+func TestQueue_EmptyWorkstream(t *testing.T) {
 	q := NewQueue()
 
 	_, err := q.Dequeue("nonexistent")
 	if err == nil {
-		t.Error("Dequeue() should error for empty role")
+		t.Error("Dequeue() should error for empty workstream")
 	}
 }
 
-func TestQueue_PeekEmptyRole(t *testing.T) {
+func TestQueue_PeekEmptyWorkstream(t *testing.T) {
 	q := NewQueue()
 
 	_, err := q.Peek("nonexistent")
 	if err == nil {
-		t.Error("Peek() should error for empty role")
+		t.Error("Peek() should error for empty workstream")
 	}
 }
 
@@ -131,9 +137,9 @@ func TestQueue_ConcurrentAccess(_ *testing.T) {
 	// Pre-populate
 	for i := 0; i < 100; i++ {
 		_ = q.Enqueue(&Task{
-			ID:       fmt.Sprintf("T%d", i),
-			Role:     "backend",
-			Priority: PriorityMedium,
+			ID:         fmt.Sprintf("T%d", i),
+			Workstream: "backend",
+			Priority:   PriorityMedium,
 		})
 	}
 
@@ -147,7 +153,7 @@ func TestQueue_ConcurrentAccess(_ *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
 				q.Size()
-				q.SizeByRole("backend")
+				q.SizeByWorkstream("backend")
 				_, _ = q.Peek("backend")
 				q.Contains("T50")
 			}
@@ -158,9 +164,9 @@ func TestQueue_ConcurrentAccess(_ *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
 				_ = q.Enqueue(&Task{
-					ID:       fmt.Sprintf("new-%d-%d", id, j),
-					Role:     "backend",
-					Priority: PriorityHigh,
+					ID:         fmt.Sprintf("new-%d-%d", id, j),
+					Workstream: "backend",
+					Priority:   PriorityHigh,
 				})
 				_, _ = q.Dequeue("backend")
 			}
@@ -173,9 +179,9 @@ func TestQueue_ConcurrentAccess(_ *testing.T) {
 func TestQueue_Remove(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "backend", Priority: PriorityLow})
 
 	// Remove middle priority
 	removed := q.Remove("T2")
@@ -195,7 +201,7 @@ func TestQueue_Remove(t *testing.T) {
 func TestQueue_RemoveNonexistent(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
 
 	removed := q.Remove("nonexistent")
 	if removed {
@@ -206,7 +212,7 @@ func TestQueue_RemoveNonexistent(t *testing.T) {
 func TestQueue_Contains(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
 
 	if !q.Contains("T1") {
 		t.Error("Contains(T1) should be true")
@@ -217,48 +223,48 @@ func TestQueue_Contains(t *testing.T) {
 	}
 }
 
-func TestQueue_Roles(t *testing.T) {
+func TestQueue_Workstreams(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "qa", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "qa", Priority: PriorityHigh})
 
-	roles := q.Roles()
-	if len(roles) != 3 {
-		t.Errorf("Roles() = %v, want 3 roles", roles)
+	workstreams := q.Workstreams()
+	if len(workstreams) != 3 {
+		t.Errorf("Workstreams() = %v, want 3 workstreams", workstreams)
 	}
 
-	// Verify all roles are present
-	roleMap := make(map[string]bool)
-	for _, r := range roles {
-		roleMap[r] = true
+	// Verify all workstreams are present
+	wsMap := make(map[string]bool)
+	for _, ws := range workstreams {
+		wsMap[ws] = true
 	}
 
 	for _, expected := range []string{"backend", "frontend", "qa"} {
-		if !roleMap[expected] {
-			t.Errorf("Roles() missing %s", expected)
+		if !wsMap[expected] {
+			t.Errorf("Workstreams() missing %s", expected)
 		}
 	}
 }
 
-func TestQueue_RolesEmpty(t *testing.T) {
+func TestQueue_WorkstreamsEmpty(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
 	_, _ = q.Dequeue("backend")
 
-	roles := q.Roles()
-	if len(roles) != 0 {
-		t.Errorf("Roles() = %v, want empty", roles)
+	workstreams := q.Workstreams()
+	if len(workstreams) != 0 {
+		t.Errorf("Workstreams() = %v, want empty", workstreams)
 	}
 }
 
 func TestQueue_Clear(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "frontend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "frontend", Priority: PriorityHigh})
 
 	q.Clear()
 
@@ -271,9 +277,9 @@ func TestQueue_EnqueueAll(t *testing.T) {
 	q := NewQueue()
 
 	tasks := []*Task{
-		{ID: "T1", Role: "backend", Priority: PriorityHigh},
-		{ID: "T2", Role: "frontend", Priority: PriorityMedium},
-		{ID: "T3", Role: "backend", Priority: PriorityLow},
+		{ID: "T1", Workstream: "backend", Priority: PriorityHigh},
+		{ID: "T2", Workstream: "frontend", Priority: PriorityMedium},
+		{ID: "T3", Workstream: "backend", Priority: PriorityLow},
 	}
 
 	err := q.EnqueueAll(tasks)
@@ -286,26 +292,12 @@ func TestQueue_EnqueueAll(t *testing.T) {
 	}
 }
 
-func TestQueue_EnqueueAllWithError(t *testing.T) {
-	q := NewQueue()
-
-	tasks := []*Task{
-		{ID: "T1", Role: "backend", Priority: PriorityHigh},
-		{ID: "T2", Role: "", Priority: PriorityMedium}, // No role - should fail
-	}
-
-	err := q.EnqueueAll(tasks)
-	if err == nil {
-		t.Error("EnqueueAll() should return error for task with no role")
-	}
-}
-
 func TestQueue_DequeueAll(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityLow})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityCritical})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "backend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "backend", Priority: PriorityMedium})
 
 	tasks := q.DequeueAll("backend")
 
@@ -322,7 +314,7 @@ func TestQueue_DequeueAll(t *testing.T) {
 	}
 
 	// Queue should be empty
-	if q.SizeByRole("backend") != 0 {
+	if q.SizeByWorkstream("backend") != 0 {
 		t.Error("Queue should be empty after DequeueAll")
 	}
 }
@@ -332,16 +324,16 @@ func TestQueue_DequeueAllEmpty(t *testing.T) {
 
 	tasks := q.DequeueAll("nonexistent")
 	if tasks != nil {
-		t.Error("DequeueAll() should return nil for nonexistent role")
+		t.Error("DequeueAll() should return nil for nonexistent workstream")
 	}
 }
 
 func TestQueue_Stats(t *testing.T) {
 	q := NewQueue()
 
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityMedium})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "frontend", Priority: PriorityCritical})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "backend", Priority: PriorityMedium})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "frontend", Priority: PriorityCritical})
 
 	stats := q.Stats()
 
@@ -349,12 +341,12 @@ func TestQueue_Stats(t *testing.T) {
 		t.Errorf("Stats.Total = %d, want 3", stats.Total)
 	}
 
-	if stats.ByRole["backend"] != 2 {
-		t.Errorf("Stats.ByRole[backend] = %d, want 2", stats.ByRole["backend"])
+	if stats.ByWorkstream["backend"] != 2 {
+		t.Errorf("Stats.ByWorkstream[backend] = %d, want 2", stats.ByWorkstream["backend"])
 	}
 
-	if stats.ByRole["frontend"] != 1 {
-		t.Errorf("Stats.ByRole[frontend] = %d, want 1", stats.ByRole["frontend"])
+	if stats.ByWorkstream["frontend"] != 1 {
+		t.Errorf("Stats.ByWorkstream[frontend] = %d, want 1", stats.ByWorkstream["frontend"])
 	}
 
 	if stats.ByPriority[PriorityHigh] != 1 {
@@ -374,9 +366,9 @@ func TestQueue_DefaultPriority(t *testing.T) {
 	q := NewQueue()
 
 	// Task with empty priority should default to medium behavior
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: ""})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityLow})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: ""})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "backend", Priority: PriorityLow})
 
 	// High should come first, then empty (treated as medium), then low
 	task1, _ := q.Dequeue("backend")
@@ -399,9 +391,9 @@ func TestQueue_SamePriorityFIFO(t *testing.T) {
 
 	// Tasks with same priority should maintain order relative to heap behavior
 	// Note: heap doesn't guarantee FIFO for same priority, but should be stable
-	_ = q.Enqueue(&Task{ID: "T1", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T2", Role: "backend", Priority: PriorityHigh})
-	_ = q.Enqueue(&Task{ID: "T3", Role: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T1", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T2", Workstream: "backend", Priority: PriorityHigh})
+	_ = q.Enqueue(&Task{ID: "T3", Workstream: "backend", Priority: PriorityHigh})
 
 	// All should come out, we don't guarantee FIFO but should get all 3
 	ids := make(map[string]bool)

@@ -19,8 +19,8 @@ type TaskManager interface {
 	// Get returns a task by ID
 	Get(id string) (*task.Task, error)
 
-	// GetByRole returns tasks for a specific role
-	GetByRole(role string) []*task.Task
+	// GetByWorkstream returns tasks for a specific workstream
+	GetByWorkstream(workstream string) []*task.Task
 
 	// GetByStatus returns tasks with a specific status
 	GetByStatus(status task.Status) []*task.Task
@@ -50,17 +50,17 @@ type TaskQueue interface {
 	// Enqueue adds a task to the queue
 	Enqueue(t *task.Task) error
 
-	// Dequeue removes and returns the highest priority task for a role
-	Dequeue(role string) (*task.Task, error)
+	// Dequeue removes and returns the highest priority task for a workstream
+	Dequeue(workstream string) (*task.Task, error)
 
 	// Peek returns the highest priority task without removing it
-	Peek(role string) (*task.Task, error)
+	Peek(workstream string) (*task.Task, error)
 
 	// Size returns total number of tasks in queue
 	Size() int
 
-	// SizeByRole returns number of tasks for a specific role
-	SizeByRole(role string) int
+	// SizeByWorkstream returns number of tasks for a specific workstream
+	SizeByWorkstream(workstream string) int
 
 	// Contains checks if a task is in the queue
 	Contains(taskID string) bool
@@ -96,8 +96,8 @@ type AgentManager interface {
 
 // TaskStats holds task statistics.
 type TaskStats struct {
-	Total      int
-	ByStatus   map[task.Status]int
-	ByRole     map[string]int
-	ByPriority map[task.Priority]int
+	Total        int
+	ByStatus     map[task.Status]int
+	ByWorkstream map[string]int
+	ByPriority   map[task.Priority]int
 }

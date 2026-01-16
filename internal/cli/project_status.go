@@ -115,11 +115,11 @@ func runProjectStatus(_ *cobra.Command, args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if projectName == "" && len(taskMgr.GetProjects()) > 0 {
 		// Include project column when showing all
-		_, _ = fmt.Fprintln(w, "PROJECT\tID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
-		_, _ = fmt.Fprintln(w, "-------\t--\t-----\t----\t----------\t--------\t------\t--------")
+		_, _ = fmt.Fprintln(w, "PROJECT\tID\tTITLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		_, _ = fmt.Fprintln(w, "-------\t--\t-----\t----------\t--------\t------\t--------")
 	} else {
-		_, _ = fmt.Fprintln(w, "ID\tTITLE\tROLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
-		_, _ = fmt.Fprintln(w, "--\t-----\t----\t----------\t--------\t------\t--------")
+		_, _ = fmt.Fprintln(w, "ID\tTITLE\tWORKSTREAM\tPRIORITY\tSTATUS\tASSIGNED")
+		_, _ = fmt.Fprintln(w, "--\t-----\t----------\t--------\t------\t--------")
 	}
 
 	// Sort by priority, then status
@@ -141,21 +141,19 @@ func runProjectStatus(_ *cobra.Command, args []string) error {
 			if proj == "" {
 				proj = "(root)"
 			}
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				truncate(proj, 15),
 				t.ID,
 				truncate(t.Title, 25),
-				t.Role,
 				truncate(ws, 12),
 				t.Priority,
 				t.Status,
 				assigned,
 			)
 		} else {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 				t.ID,
 				truncate(t.Title, 30),
-				t.Role,
 				truncate(ws, 15),
 				t.Priority,
 				t.Status,
@@ -170,7 +168,6 @@ func runProjectStatus(_ *cobra.Command, args []string) error {
 // workstreamInfo holds summary info for a workstream.
 type workstreamInfo struct {
 	Name       string
-	Role       string
 	Total      int
 	Complete   int
 	Pending    int
@@ -186,7 +183,6 @@ func collectWorkstreams(tasks []*task.Task) map[string]*workstreamInfo {
 		if !exists {
 			info = &workstreamInfo{
 				Name: ws,
-				Role: t.Role,
 			}
 			workstreams[ws] = info
 		}
@@ -212,26 +208,22 @@ func printWorkstreamSummary(workstreams map[string]*workstreamInfo, _ []*task.Ta
 
 	fmt.Println("Workstreams:")
 
-	// Sort by role, then name
+	// Sort by name
 	wsList := make([]*workstreamInfo, 0, len(workstreams))
 	for _, ws := range workstreams {
 		wsList = append(wsList, ws)
 	}
 	sort.Slice(wsList, func(i, j int) bool {
-		if wsList[i].Role != wsList[j].Role {
-			return wsList[i].Role < wsList[j].Role
-		}
 		return wsList[i].Name < wsList[j].Name
 	})
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "  WORKSTREAM\tROLE\tTOTAL\tCOMPLETE\tIN PROGRESS\tPENDING")
-	_, _ = fmt.Fprintln(w, "  ----------\t----\t-----\t--------\t-----------\t-------")
+	_, _ = fmt.Fprintln(w, "  WORKSTREAM\tTOTAL\tCOMPLETE\tIN PROGRESS\tPENDING")
+	_, _ = fmt.Fprintln(w, "  ----------\t-----\t--------\t-----------\t-------")
 
 	for _, ws := range wsList {
-		_, _ = fmt.Fprintf(w, "  %s\t%s\t%d\t%d\t%d\t%d\n",
+		_, _ = fmt.Fprintf(w, "  %s\t%d\t%d\t%d\t%d\n",
 			truncate(ws.Name, 20),
-			ws.Role,
 			ws.Total,
 			ws.Complete,
 			ws.InProgress,
@@ -245,7 +237,6 @@ func printWorkstreamSummary(workstreams map[string]*workstreamInfo, _ []*task.Ta
 
 func printProjectAgents() {
 	// Placeholder - will integrate with agent manager later
-	// This function will list agents with roles assigned
 }
 
 func sortTasks(tasks []*task.Task) {
@@ -343,10 +334,10 @@ func (m *mockTaskManager) Get(id string) (*task.Task, error) {
 	return t, nil
 }
 
-func (m *mockTaskManager) GetByRole(role string) []*task.Task {
+func (m *mockTaskManager) GetByWorkstream(workstream string) []*task.Task {
 	var tasks []*task.Task
 	for _, t := range m.tasks {
-		if t.Role == role {
+		if t.GetWorkstream() == workstream {
 			tasks = append(tasks, t)
 		}
 	}
@@ -424,15 +415,15 @@ func (m *mockTaskManager) IsBlocked(id string) (bool, error) {
 
 func (m *mockTaskManager) Stats() *project.TaskStats {
 	stats := &project.TaskStats{
-		ByStatus:   make(map[task.Status]int),
-		ByRole:     make(map[string]int),
-		ByPriority: make(map[task.Priority]int),
+		ByStatus:     make(map[task.Status]int),
+		ByWorkstream: make(map[string]int),
+		ByPriority:   make(map[task.Priority]int),
 	}
 
 	for _, t := range m.tasks {
 		stats.Total++
 		stats.ByStatus[t.Status]++
-		stats.ByRole[t.Role]++
+		stats.ByWorkstream[t.GetWorkstream()]++
 		stats.ByPriority[t.Priority]++
 	}
 

@@ -20,7 +20,7 @@ func TestParse(t *testing.T) {
 			content: `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 priority: high
 completion:
   verify: "npm test"
@@ -31,11 +31,11 @@ completion:
 Do the thing.
 `,
 			want: &Task{
-				ID:       "TASK-001",
-				Title:    "Test Task",
-				Role:     "backend",
-				Priority: PriorityHigh,
-				Status:   StatusPending, // Default
+				ID:         "TASK-001",
+				Title:      "Test Task",
+				Workstream: "backend",
+				Priority:   PriorityHigh,
+				Status:     StatusPending, // Default
 				Completion: &CompletionConfig{
 					Verify: "npm test",
 				},
@@ -49,7 +49,7 @@ Do the thing.
 			content: `---
 id: TASK-002
 title: Another Task
-role: frontend
+workstream: frontend
 completion:
   signal: "DONE"
   max_iterations: 20
@@ -58,11 +58,11 @@ completion:
 Content here
 `,
 			want: &Task{
-				ID:       "TASK-002",
-				Title:    "Another Task",
-				Role:     "frontend",
-				Priority: PriorityMedium, // Default
-				Status:   StatusPending,
+				ID:         "TASK-002",
+				Title:      "Another Task",
+				Workstream: "frontend",
+				Priority:   PriorityMedium, // Default
+				Status:     StatusPending,
 				Completion: &CompletionConfig{
 					Signal:        "DONE",
 					MaxIterations: 20,
@@ -77,7 +77,6 @@ Content here
 			content: `---
 id: TASK-001
 title: Minimal
-role: backend
 ---
 
 Do it.
@@ -85,7 +84,6 @@ Do it.
 			want: &Task{
 				ID:       "TASK-001",
 				Title:    "Minimal",
-				Role:     "backend",
 				Priority: PriorityMedium, // Default
 				Status:   StatusPending,  // Default
 				Content:  "Do it.",
@@ -97,7 +95,7 @@ Do it.
 			content: `---
 id: TASK-003
 title: Full Task
-role: qa
+workstream: qa
 priority: critical
 status: in_progress
 depends_on:
@@ -119,7 +117,7 @@ This has all fields populated.
 			want: &Task{
 				ID:         "TASK-003",
 				Title:      "Full Task",
-				Role:       "qa",
+				Workstream: "qa",
 				Priority:   PriorityCritical,
 				Status:     StatusInProgress,
 				DependsOn:  []string{"TASK-001", "TASK-002"},
@@ -137,7 +135,7 @@ This has all fields populated.
 			name: "missing front matter delimiters",
 			content: `id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 
 Content
 `,
@@ -148,7 +146,7 @@ Content
 			name: "missing id",
 			content: `---
 title: Test Task
-role: backend
+workstream: backend
 ---
 
 Content
@@ -160,7 +158,7 @@ Content
 			name: "missing title",
 			content: `---
 id: TASK-001
-role: backend
+workstream: backend
 ---
 
 Content
@@ -169,23 +167,11 @@ Content
 			errMsg:  "title",
 		},
 		{
-			name: "missing role",
-			content: `---
-id: TASK-001
-title: Test Task
----
-
-Content
-`,
-			wantErr: true,
-			errMsg:  "role",
-		},
-		{
 			name: "invalid priority",
 			content: `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 priority: urgent
 ---
 
@@ -199,7 +185,7 @@ Content
 			content: `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 status: done
 ---
 
@@ -213,7 +199,7 @@ Content
 			content: `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 completion: {}
 ---
 
@@ -227,7 +213,7 @@ Content
 			content: `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
   invalid:
 yaml: structure
 ---
@@ -262,8 +248,8 @@ Content
 			if got.Title != tt.want.Title {
 				t.Errorf("Title = %q, want %q", got.Title, tt.want.Title)
 			}
-			if got.Role != tt.want.Role {
-				t.Errorf("Role = %q, want %q", got.Role, tt.want.Role)
+			if got.Workstream != tt.want.Workstream {
+				t.Errorf("Workstream = %q, want %q", got.Workstream, tt.want.Workstream)
 			}
 			if got.Priority != tt.want.Priority {
 				t.Errorf("Priority = %q, want %q", got.Priority, tt.want.Priority)
@@ -298,7 +284,7 @@ func TestParseFile(t *testing.T) {
 	validContent := `---
 id: TASK-001
 title: Test Task
-role: backend
+workstream: backend
 priority: high
 ---
 
@@ -352,31 +338,25 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:    "empty id",
-			task:    &Task{Title: "Test", Role: "backend"},
+			task:    &Task{Title: "Test", Workstream: "backend"},
 			wantErr: true,
 			errMsg:  "id",
 		},
 		{
 			name:    "empty title",
-			task:    &Task{ID: "T1", Role: "backend"},
+			task:    &Task{ID: "T1", Workstream: "backend"},
 			wantErr: true,
 			errMsg:  "title",
 		},
 		{
-			name:    "empty role",
-			task:    &Task{ID: "T1", Title: "Test"},
-			wantErr: true,
-			errMsg:  "role",
-		},
-		{
 			name:    "invalid priority",
-			task:    &Task{ID: "T1", Title: "Test", Role: "backend", Priority: "urgent"},
+			task:    &Task{ID: "T1", Title: "Test", Workstream: "backend", Priority: "urgent"},
 			wantErr: true,
 			errMsg:  "priority",
 		},
 		{
 			name:    "invalid status",
-			task:    &Task{ID: "T1", Title: "Test", Role: "backend", Status: "done"},
+			task:    &Task{ID: "T1", Title: "Test", Workstream: "backend", Status: "done"},
 			wantErr: true,
 			errMsg:  "status",
 		},
@@ -385,7 +365,7 @@ func TestValidate(t *testing.T) {
 			task: &Task{
 				ID:         "T1",
 				Title:      "Test",
-				Role:       "backend",
+				Workstream: "backend",
 				Completion: &CompletionConfig{},
 			},
 			wantErr: true,
@@ -396,16 +376,24 @@ func TestValidate(t *testing.T) {
 			task: &Task{
 				ID:    "T1",
 				Title: "Test",
-				Role:  "backend",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid task with workstream",
+			task: &Task{
+				ID:         "T1",
+				Title:      "Test",
+				Workstream: "backend",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid task with completion",
 			task: &Task{
-				ID:    "T1",
-				Title: "Test",
-				Role:  "backend",
+				ID:         "T1",
+				Title:      "Test",
+				Workstream: "backend",
 				Completion: &CompletionConfig{
 					Verify: "npm test",
 				},
@@ -436,7 +424,6 @@ func TestValidate_DefaultsApplied(t *testing.T) {
 	task := &Task{
 		ID:    "T1",
 		Title: "Test",
-		Role:  "backend",
 	}
 
 	if err := Validate(task); err != nil {

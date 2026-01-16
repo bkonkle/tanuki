@@ -13,7 +13,6 @@ import (
 type taskFrontMatter struct {
 	ID         string            `yaml:"id"`
 	Title      string            `yaml:"title"`
-	Role       string            `yaml:"role"`
 	Workstream string            `yaml:"workstream,omitempty"`
 	Priority   Priority          `yaml:"priority,omitempty"`
 	Status     Status            `yaml:"status,omitempty"`
@@ -42,7 +41,6 @@ func WriteFile(t *Task) error {
 	fm := taskFrontMatter{
 		ID:             t.ID,
 		Title:          t.Title,
-		Role:           t.Role,
 		Workstream:     t.Workstream,
 		Priority:       t.Priority,
 		Status:         t.Status,
@@ -82,7 +80,6 @@ func Serialize(t *Task) (string, error) {
 	fm := taskFrontMatter{
 		ID:             t.ID,
 		Title:          t.Title,
-		Role:           t.Role,
 		Workstream:     t.Workstream,
 		Priority:       t.Priority,
 		Status:         t.Status,

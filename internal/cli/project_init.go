@@ -112,7 +112,6 @@ Files agents should understand:
 	exampleTask := fmt.Sprintf(`---
 id: %s-001
 title: Example Task
-role: backend
 workstream: main
 priority: medium
 status: pending
@@ -139,7 +138,7 @@ This is an example task file. Replace this with your actual task.
 - Say TASK_DONE when finished
 `, projectName)
 
-	examplePath := filepath.Join(projectPath, "001-backend-main-example-task.md")
+	examplePath := filepath.Join(projectPath, "001-main-example-task.md")
 	if err := os.WriteFile(examplePath, []byte(exampleTask), 0600); err != nil {
 		return fmt.Errorf("write example task: %w", err)
 	}
@@ -173,7 +172,7 @@ This directory contains project folders for task-driven development with Tanuki.
 
 Each project folder serves as a **linear, historical record** of work:
 
-- **Driving agents**: Tasks define work for role-based agents that execute in parallel
+- **Driving agents**: Tasks define work for agents that execute in parallel
 - **Documenting decisions**: Each task captures requirements, context, and completion criteria
 - **Tracking evolution**: The sequence of tasks shows how a project evolved over time
 
@@ -197,7 +196,6 @@ Tasks use YAML front matter with markdown content:
 ---
 id: project-001
 title: Task Title
-role: backend          # Agent role (backend, frontend, qa, etc.)
 workstream: main       # Groups related sequential work
 priority: high         # critical, high, medium, low
 status: pending        # pending, assigned, in_progress, complete, failed

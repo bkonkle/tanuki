@@ -24,9 +24,6 @@ const (
 
 // WorkstreamState tracks the state of a workstream.
 type WorkstreamState struct {
-	// Role this workstream belongs to
-	Role string
-
 	// Workstream identifier
 	Workstream string
 
@@ -86,52 +83,52 @@ func (ws *WorkstreamState) Progress() float64 {
 	return float64(completed) / float64(len(ws.Tasks)) * 100
 }
 
-// WorkstreamScheduler manages workstream scheduling with per-role concurrency.
+// WorkstreamScheduler manages workstream scheduling with per-workstream concurrency.
 type WorkstreamScheduler struct {
 	mu sync.RWMutex
 
 	// taskMgr provides task access
 	taskMgr TaskManager
 
-	// roleConcurrency maps role names to their concurrency limits
-	roleConcurrency map[string]int
+	// workstreamConcurrency maps workstream names to their concurrency limits
+	workstreamConcurrency map[string]int
 
-	// activeWorkstreams tracks currently active workstreams by role
-	activeWorkstreams map[string][]*WorkstreamState
+	// activeWorkstreams tracks currently active workstreams
+	activeWorkstreams map[string]*WorkstreamState
 
 	// pendingWorkstreams tracks workstreams waiting to be scheduled
-	pendingWorkstreams map[string][]string // role -> []workstream IDs
+	pendingWorkstreams []string
 
 	// workstreamStates stores all workstream states
-	workstreamStates map[string]*WorkstreamState // "role:workstream" -> state
+	workstreamStates map[string]*WorkstreamState
 }
 
 // NewWorkstreamScheduler creates a new workstream scheduler.
 func NewWorkstreamScheduler(taskMgr TaskManager) *WorkstreamScheduler {
 	return &WorkstreamScheduler{
-		taskMgr:            taskMgr,
-		roleConcurrency:    make(map[string]int),
-		activeWorkstreams:  make(map[string][]*WorkstreamState),
-		pendingWorkstreams: make(map[string][]string),
-		workstreamStates:   make(map[string]*WorkstreamState),
+		taskMgr:               taskMgr,
+		workstreamConcurrency: make(map[string]int),
+		activeWorkstreams:     make(map[string]*WorkstreamState),
+		pendingWorkstreams:    []string{},
+		workstreamStates:      make(map[string]*WorkstreamState),
 	}
 }
 
-// SetRoleConcurrency sets the concurrency limit for a role.
-func (s *WorkstreamScheduler) SetRoleConcurrency(role string, concurrency int) {
+// SetWorkstreamConcurrency sets the concurrency limit for a workstream.
+func (s *WorkstreamScheduler) SetWorkstreamConcurrency(workstream string, concurrency int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if concurrency <= 0 {
 		concurrency = 1
 	}
-	s.roleConcurrency[role] = concurrency
+	s.workstreamConcurrency[workstream] = concurrency
 }
 
-// GetRoleConcurrency returns the concurrency limit for a role.
-func (s *WorkstreamScheduler) GetRoleConcurrency(role string) int {
+// GetWorkstreamConcurrency returns the concurrency limit for a workstream.
+func (s *WorkstreamScheduler) GetWorkstreamConcurrency(workstream string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if c, ok := s.roleConcurrency[role]; ok {
+	if c, ok := s.workstreamConcurrency[workstream]; ok {
 		return c
 	}
 	return 1 // Default
@@ -147,106 +144,83 @@ func (s *WorkstreamScheduler) Initialize() error {
 		return fmt.Errorf("scan tasks: %w", err)
 	}
 
-	// Group tasks by role and workstream
-	workstreamTasks := make(map[string]map[string][]*task.Task) // role -> workstream -> tasks
+	// Group tasks by workstream
+	workstreamTasks := make(map[string][]*task.Task)
 
 	for _, t := range tasks {
-		role := t.Role
 		ws := t.GetWorkstream()
-
-		if workstreamTasks[role] == nil {
-			workstreamTasks[role] = make(map[string][]*task.Task)
-		}
-		workstreamTasks[role][ws] = append(workstreamTasks[role][ws], t)
+		workstreamTasks[ws] = append(workstreamTasks[ws], t)
 	}
 
 	// Create workstream states
-	for role, workstreams := range workstreamTasks {
-		for wsName, wsTasks := range workstreams {
-			key := workstreamKey(role, wsName)
-
-			// Sort tasks by priority and ID
-			taskIDs := make([]string, len(wsTasks))
-			for i, t := range wsTasks {
-				taskIDs[i] = t.ID
-			}
-
-			state := &WorkstreamState{
-				Role:           role,
-				Workstream:     wsName,
-				Status:         WorkstreamPending,
-				Tasks:          taskIDs,
-				CompletedTasks: make(map[string]bool),
-			}
-
-			// Mark already completed tasks
-			for _, t := range wsTasks {
-				if t.Status == task.StatusComplete {
-					state.CompletedTasks[t.ID] = true
-				}
-			}
-
-			// Determine initial status
-			if state.IsComplete() {
-				state.Status = WorkstreamCompleted
-			} else {
-				// Add to pending queue
-				s.pendingWorkstreams[role] = append(s.pendingWorkstreams[role], wsName)
-			}
-
-			s.workstreamStates[key] = state
+	for wsName, wsTasks := range workstreamTasks {
+		// Sort tasks by priority and ID
+		taskIDs := make([]string, len(wsTasks))
+		for i, t := range wsTasks {
+			taskIDs[i] = t.ID
 		}
+
+		state := &WorkstreamState{
+			Workstream:     wsName,
+			Status:         WorkstreamPending,
+			Tasks:          taskIDs,
+			CompletedTasks: make(map[string]bool),
+		}
+
+		// Mark already completed tasks
+		for _, t := range wsTasks {
+			if t.Status == task.StatusComplete {
+				state.CompletedTasks[t.ID] = true
+			}
+		}
+
+		// Determine initial status
+		if state.IsComplete() {
+			state.Status = WorkstreamCompleted
+		} else {
+			// Add to pending queue
+			s.pendingWorkstreams = append(s.pendingWorkstreams, wsName)
+		}
+
+		s.workstreamStates[wsName] = state
 	}
 
 	return nil
 }
 
-// GetNextWorkstream returns the next workstream to schedule for a role.
+// GetNextWorkstream returns the next workstream to schedule.
 // Returns nil if no workstreams are available or concurrency limit is reached.
-func (s *WorkstreamScheduler) GetNextWorkstream(role string) *WorkstreamState {
+func (s *WorkstreamScheduler) GetNextWorkstream() *WorkstreamState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check concurrency limit
-	concurrency := s.roleConcurrency[role]
-	if concurrency <= 0 {
-		concurrency = 1
-	}
-
-	activeCount := len(s.activeWorkstreams[role])
-	if activeCount >= concurrency {
-		return nil // At capacity
-	}
-
-	// Get next pending workstream
-	pending := s.pendingWorkstreams[role]
-	if len(pending) == 0 {
+	if len(s.pendingWorkstreams) == 0 {
 		return nil // No pending workstreams
 	}
 
-	// Pop the first pending workstream
-	wsName := pending[0]
-	s.pendingWorkstreams[role] = pending[1:]
+	// Find first pending workstream that isn't already active
+	for i, wsName := range s.pendingWorkstreams {
+		// Check if already active
+		if _, active := s.activeWorkstreams[wsName]; active {
+			continue // Already running
+		}
 
-	// Get the workstream state
-	key := workstreamKey(role, wsName)
-	state := s.workstreamStates[key]
-	if state == nil {
-		return nil // Should not happen
+		// Remove from pending and return
+		s.pendingWorkstreams = append(s.pendingWorkstreams[:i], s.pendingWorkstreams[i+1:]...)
+		return s.workstreamStates[wsName]
 	}
 
-	return state
+	return nil
 }
 
 // ActivateWorkstream marks a workstream as active and assigns it to an agent.
-func (s *WorkstreamScheduler) ActivateWorkstream(role, workstream, agentName string) error {
+func (s *WorkstreamScheduler) ActivateWorkstream(workstream, agentName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := workstreamKey(role, workstream)
-	state := s.workstreamStates[key]
+	state := s.workstreamStates[workstream]
 	if state == nil {
-		return fmt.Errorf("workstream %q not found for role %q", workstream, role)
+		return fmt.Errorf("workstream %q not found", workstream)
 	}
 
 	state.Status = WorkstreamActive
@@ -254,7 +228,7 @@ func (s *WorkstreamScheduler) ActivateWorkstream(role, workstream, agentName str
 	state.StartedAt = time.Now()
 	state.CurrentTask = state.NextTask()
 
-	s.activeWorkstreams[role] = append(s.activeWorkstreams[role], state)
+	s.activeWorkstreams[workstream] = state
 
 	return nil
 }
@@ -276,7 +250,7 @@ func (s *WorkstreamScheduler) CompleteTask(taskID string) error {
 					state.Status = WorkstreamCompleted
 					now := time.Now()
 					state.CompletedAt = &now
-					s.removeFromActive(state.Role, state.Workstream)
+					delete(s.activeWorkstreams, state.Workstream)
 				}
 
 				return nil
@@ -298,7 +272,7 @@ func (s *WorkstreamScheduler) FailTask(taskID string) error {
 				state.Status = WorkstreamFailed
 				now := time.Now()
 				state.CompletedAt = &now
-				s.removeFromActive(state.Role, state.Workstream)
+				delete(s.activeWorkstreams, state.Workstream)
 				return nil
 			}
 		}
@@ -307,39 +281,30 @@ func (s *WorkstreamScheduler) FailTask(taskID string) error {
 	return fmt.Errorf("task %q not found in any workstream", taskID)
 }
 
-// removeFromActive removes a workstream from the active list.
-func (s *WorkstreamScheduler) removeFromActive(role, workstream string) {
-	active := s.activeWorkstreams[role]
-	for i, ws := range active {
-		if ws.Workstream == workstream {
-			s.activeWorkstreams[role] = append(active[:i], active[i+1:]...)
-			return
-		}
-	}
-}
-
-// GetActiveWorkstreams returns all active workstreams for a role.
-func (s *WorkstreamScheduler) GetActiveWorkstreams(role string) []*WorkstreamState {
+// GetActiveWorkstreams returns all active workstreams.
+func (s *WorkstreamScheduler) GetActiveWorkstreams() []*WorkstreamState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make([]*WorkstreamState, len(s.activeWorkstreams[role]))
-	copy(result, s.activeWorkstreams[role])
+	result := make([]*WorkstreamState, 0, len(s.activeWorkstreams))
+	for _, state := range s.activeWorkstreams {
+		result = append(result, state)
+	}
 	return result
 }
 
-// GetPendingCount returns the number of pending workstreams for a role.
-func (s *WorkstreamScheduler) GetPendingCount(role string) int {
+// GetPendingCount returns the number of pending workstreams.
+func (s *WorkstreamScheduler) GetPendingCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.pendingWorkstreams[role])
+	return len(s.pendingWorkstreams)
 }
 
 // GetWorkstreamState returns the state of a specific workstream.
-func (s *WorkstreamScheduler) GetWorkstreamState(role, workstream string) *WorkstreamState {
+func (s *WorkstreamScheduler) GetWorkstreamState(workstream string) *WorkstreamState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.workstreamStates[workstreamKey(role, workstream)]
+	return s.workstreamStates[workstream]
 }
 
 // GetAllWorkstreamStates returns all workstream states.
@@ -360,31 +325,23 @@ func (s *WorkstreamScheduler) Stats() *WorkstreamStats {
 	defer s.mu.RUnlock()
 
 	stats := &WorkstreamStats{
-		ByRole:   make(map[string]*RoleWorkstreamStats),
-		ByStatus: make(map[WorkstreamStatus]int),
+		ByWorkstream: make(map[string]*WorkstreamStateStats),
+		ByStatus:     make(map[WorkstreamStatus]int),
 	}
 
 	for _, state := range s.workstreamStates {
 		stats.Total++
 		stats.ByStatus[state.Status]++
 
-		roleStats := stats.ByRole[state.Role]
-		if roleStats == nil {
-			roleStats = &RoleWorkstreamStats{Role: state.Role}
-			stats.ByRole[state.Role] = roleStats
+		wsStats := stats.ByWorkstream[state.Workstream]
+		if wsStats == nil {
+			wsStats = &WorkstreamStateStats{Workstream: state.Workstream}
+			stats.ByWorkstream[state.Workstream] = wsStats
 		}
 
-		roleStats.Total++
-		switch state.Status {
-		case WorkstreamActive:
-			roleStats.Active++
-		case WorkstreamPending:
-			roleStats.Pending++
-		case WorkstreamCompleted:
-			roleStats.Completed++
-		case WorkstreamFailed:
-			roleStats.Failed++
-		}
+		wsStats.TaskCount = len(state.Tasks)
+		wsStats.CompletedCount = len(state.CompletedTasks)
+		wsStats.Status = state.Status
 	}
 
 	return stats
@@ -392,22 +349,15 @@ func (s *WorkstreamScheduler) Stats() *WorkstreamStats {
 
 // WorkstreamStats contains workstream statistics.
 type WorkstreamStats struct {
-	Total    int
-	ByRole   map[string]*RoleWorkstreamStats
-	ByStatus map[WorkstreamStatus]int
+	Total        int
+	ByWorkstream map[string]*WorkstreamStateStats
+	ByStatus     map[WorkstreamStatus]int
 }
 
-// RoleWorkstreamStats contains workstream stats for a specific role.
-type RoleWorkstreamStats struct {
-	Role      string
-	Total     int
-	Active    int
-	Pending   int
-	Completed int
-	Failed    int
-}
-
-// workstreamKey creates a unique key for a role:workstream pair.
-func workstreamKey(role, workstream string) string {
-	return role + ":" + workstream
+// WorkstreamStateStats contains stats for a specific workstream.
+type WorkstreamStateStats struct {
+	Workstream     string
+	TaskCount      int
+	CompletedCount int
+	Status         WorkstreamStatus
 }

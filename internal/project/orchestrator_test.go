@@ -41,10 +41,10 @@ func (m *mockTaskManager) Get(id string) (*task.Task, error) {
 	return t, nil
 }
 
-func (m *mockTaskManager) GetByRole(role string) []*task.Task {
+func (m *mockTaskManager) GetByWorkstream(workstream string) []*task.Task {
 	var tasks []*task.Task
 	for _, t := range m.tasks {
-		if t.Role == role {
+		if t.Workstream == workstream {
 			tasks = append(tasks, t)
 		}
 	}
@@ -99,14 +99,14 @@ func (m *mockTaskManager) IsBlocked(_ string) (bool, error) {
 
 func (m *mockTaskManager) Stats() *TaskStats {
 	stats := &TaskStats{
-		ByStatus:   make(map[task.Status]int),
-		ByRole:     make(map[string]int),
-		ByPriority: make(map[task.Priority]int),
+		ByStatus:     make(map[task.Status]int),
+		ByWorkstream: make(map[string]int),
+		ByPriority:   make(map[task.Priority]int),
 	}
 	for _, t := range m.tasks {
 		stats.Total++
 		stats.ByStatus[t.Status]++
-		stats.ByRole[t.Role]++
+		stats.ByWorkstream[t.Workstream]++
 		stats.ByPriority[t.Priority]++
 	}
 	return stats
@@ -128,9 +128,9 @@ func (m *mockAgentManager) addAgent(ag *agent.Agent) {
 
 func (m *mockAgentManager) Spawn(name string, opts agent.SpawnOptions) (*agent.Agent, error) {
 	ag := &agent.Agent{
-		Name:   name,
-		Role:   opts.Role,
-		Status: "idle",
+		Name:       name,
+		Workstream: opts.Workstream,
+		Status:     "idle",
 	}
 	m.agents[name] = ag
 	return ag, nil
@@ -194,33 +194,33 @@ func (m *mockTaskQueue) Enqueue(t *task.Task) error {
 	return nil
 }
 
-func (m *mockTaskQueue) Dequeue(role string) (*task.Task, error) {
+func (m *mockTaskQueue) Dequeue(workstream string) (*task.Task, error) {
 	for id, t := range m.tasks {
-		if t.Role == role {
+		if t.Workstream == workstream {
 			delete(m.tasks, id)
 			return t, nil
 		}
 	}
-	return nil, &task.ValidationError{Message: "no tasks for role"}
+	return nil, &task.ValidationError{Message: "no tasks for workstream"}
 }
 
-func (m *mockTaskQueue) Peek(role string) (*task.Task, error) {
+func (m *mockTaskQueue) Peek(workstream string) (*task.Task, error) {
 	for _, t := range m.tasks {
-		if t.Role == role {
+		if t.Workstream == workstream {
 			return t, nil
 		}
 	}
-	return nil, &task.ValidationError{Message: "no tasks for role"}
+	return nil, &task.ValidationError{Message: "no tasks for workstream"}
 }
 
 func (m *mockTaskQueue) Size() int {
 	return len(m.tasks)
 }
 
-func (m *mockTaskQueue) SizeByRole(role string) int {
+func (m *mockTaskQueue) SizeByWorkstream(workstream string) int {
 	count := 0
 	for _, t := range m.tasks {
-		if t.Role == role {
+		if t.Workstream == workstream {
 			count++
 		}
 	}
@@ -274,7 +274,7 @@ func TestOrchestrator_StartWithNoTasks(t *testing.T) {
 
 func TestOrchestrator_StartAlreadyRunning(t *testing.T) {
 	taskMgr := newMockTaskManager()
-	taskMgr.addTask(&task.Task{ID: "T1", Role: "backend", Status: task.StatusPending})
+	taskMgr.addTask(&task.Task{ID: "T1", Workstream: "backend", Status: task.StatusPending})
 	agentMgr := newMockAgentManager()
 	queue := newMockTaskQueue()
 	config := DefaultOrchestratorConfig()
@@ -292,9 +292,9 @@ func TestOrchestrator_StartAlreadyRunning(t *testing.T) {
 
 func TestOrchestrator_GetProgress(t *testing.T) {
 	taskMgr := newMockTaskManager()
-	taskMgr.addTask(&task.Task{ID: "T1", Role: "backend", Status: task.StatusComplete})
-	taskMgr.addTask(&task.Task{ID: "T2", Role: "backend", Status: task.StatusPending})
-	taskMgr.addTask(&task.Task{ID: "T3", Role: "frontend", Status: task.StatusInProgress})
+	taskMgr.addTask(&task.Task{ID: "T1", Workstream: "backend", Status: task.StatusComplete})
+	taskMgr.addTask(&task.Task{ID: "T2", Workstream: "backend", Status: task.StatusPending})
+	taskMgr.addTask(&task.Task{ID: "T3", Workstream: "frontend", Status: task.StatusInProgress})
 	agentMgr := newMockAgentManager()
 	queue := newMockTaskQueue()
 	config := DefaultOrchestratorConfig()
@@ -327,9 +327,9 @@ func TestOrchestrator_GetProgress(t *testing.T) {
 
 func TestOrchestrator_Status(t *testing.T) {
 	taskMgr := newMockTaskManager()
-	taskMgr.addTask(&task.Task{ID: "T1", Role: "backend", Status: task.StatusPending})
+	taskMgr.addTask(&task.Task{ID: "T1", Workstream: "backend", Status: task.StatusPending})
 	agentMgr := newMockAgentManager()
-	agentMgr.addAgent(&agent.Agent{Name: "be-1", Role: "backend", Status: "idle"})
+	agentMgr.addAgent(&agent.Agent{Name: "be-1", Workstream: "backend", Status: "idle"})
 	queue := newMockTaskQueue()
 	config := DefaultOrchestratorConfig()
 
@@ -432,8 +432,8 @@ func TestDefaultOrchestratorConfig(t *testing.T) {
 		t.Errorf("PollInterval = %v, want 10s", config.PollInterval)
 	}
 
-	if config.MaxAgentsPerRole != 1 {
-		t.Errorf("MaxAgentsPerRole = %d, want 1", config.MaxAgentsPerRole)
+	if config.MaxAgentsPerWorkstream != 1 {
+		t.Errorf("MaxAgentsPerWorkstream = %d, want 1", config.MaxAgentsPerWorkstream)
 	}
 
 	if !config.AutoSpawnAgents {
@@ -484,7 +484,7 @@ func TestOrchestrator_HandleEvent_TaskCompleted(t *testing.T) {
 	taskMgr := newMockTaskManager()
 	taskMgr.addTask(&task.Task{
 		ID:         "T1",
-		Role:       "backend",
+		Workstream: "backend",
 		Status:     task.StatusInProgress,
 		AssignedTo: "be-1",
 	})

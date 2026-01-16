@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"time"
 
@@ -11,15 +10,14 @@ import (
 	"github.com/bkonkle/tanuki/internal/docker"
 	"github.com/bkonkle/tanuki/internal/executor"
 	"github.com/bkonkle/tanuki/internal/git"
-	"github.com/bkonkle/tanuki/internal/role"
 	"github.com/bkonkle/tanuki/internal/state"
 	"github.com/spf13/cobra"
 )
 
 var (
-	spawnCount  int
-	spawnBranch string
-	spawnRole   string
+	spawnCount      int
+	spawnBranch     string
+	spawnWorkstream string
 )
 
 var spawnCmd = &cobra.Command{
@@ -31,7 +29,7 @@ Examples:
   tanuki spawn auth              # Create agent named "auth"
   tanuki spawn -n 3              # Create agent-1, agent-2, agent-3
   tanuki spawn auth -b main      # Use existing branch
-  tanuki spawn backend --role backend  # Spawn with backend role`,
+  tanuki spawn auth -w payments  # Spawn with workstream config`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runSpawn,
 }
@@ -39,7 +37,7 @@ Examples:
 func init() {
 	spawnCmd.Flags().IntVarP(&spawnCount, "count", "n", 1, "Number of agents to spawn")
 	spawnCmd.Flags().StringVarP(&spawnBranch, "branch", "b", "", "Base branch (default: current branch)")
-	spawnCmd.Flags().StringVarP(&spawnRole, "role", "r", "", "Role to assign to agent")
+	spawnCmd.Flags().StringVarP(&spawnWorkstream, "workstream", "w", "", "Workstream to assign to agent")
 	rootCmd.AddCommand(spawnCmd)
 }
 
@@ -75,16 +73,6 @@ func runSpawn(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create agent manager: %w", err)
 	}
 
-	// Set up role manager if role is specified
-	if spawnRole != "" {
-		projectRoot, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current directory: %w", err)
-		}
-		roleMgr := role.NewManager(projectRoot)
-		agentMgr.SetRoleManager(newRoleManagerAdapter(roleMgr))
-	}
-
 	// Determine names
 	var names []string
 	if len(args) > 0 {
@@ -107,15 +95,15 @@ func runSpawn(_ *cobra.Command, args []string) error {
 
 	// Spawn each agent
 	for _, name := range names {
-		if spawnRole != "" {
-			fmt.Printf("Spawning agent %s with role %q...\n", name, spawnRole)
+		if spawnWorkstream != "" {
+			fmt.Printf("Spawning agent %s with workstream %q...\n", name, spawnWorkstream)
 		} else {
 			fmt.Printf("Spawning agent %s...\n", name)
 		}
 
 		opts := agent.SpawnOptions{
-			Branch: spawnBranch,
-			Role:   spawnRole,
+			Branch:     spawnBranch,
+			Workstream: spawnWorkstream,
 		}
 
 		start := time.Now()
@@ -130,8 +118,8 @@ func runSpawn(_ *cobra.Command, args []string) error {
 		fmt.Printf("  Created agent %s (%.1fs)\n", ag.Name, elapsed.Seconds())
 		fmt.Printf("    Branch:    %s\n", ag.Branch)
 		fmt.Printf("    Container: %s\n", ag.ContainerName)
-		if ag.Role != "" {
-			fmt.Printf("    Role:      %s\n", ag.Role)
+		if ag.Workstream != "" {
+			fmt.Printf("    Workstream: %s\n", ag.Workstream)
 		}
 		fmt.Printf("    Worktree:  %s\n", ag.WorktreePath)
 		fmt.Println()

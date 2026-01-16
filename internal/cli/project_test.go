@@ -47,7 +47,7 @@ func TestProjectInit(t *testing.T) {
 	}
 
 	// Check example task was created
-	examplePath := filepath.Join(projectDir, "001-backend-main-example-task.md")
+	examplePath := filepath.Join(projectDir, "001-main-example-task.md")
 	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
@@ -61,8 +61,8 @@ func TestProjectInit(t *testing.T) {
 	if !strings.Contains(string(content), "id: test-project-001") {
 		t.Error("example task missing id")
 	}
-	if !strings.Contains(string(content), "role: backend") {
-		t.Error("example task missing role")
+	if !strings.Contains(string(content), "workstream: main") {
+		t.Error("example task missing workstream")
 	}
 }
 
@@ -89,7 +89,7 @@ func TestProjectInitIdempotent(t *testing.T) {
 		t.Fatalf("read project dir: %v", err)
 	}
 
-	// Expect 2 files: README.md and 001-backend-main-example-task.md
+	// Expect 2 files: README.md and 001-main-example-task.md
 	if len(entries) != 2 {
 		t.Errorf("expected 2 files (README.md + example task), got %d", len(entries))
 	}
@@ -127,7 +127,7 @@ func TestProjectInitWithDifferentName(t *testing.T) {
 	}
 
 	// Check example task was created in project folder
-	examplePath := filepath.Join(projectDir, "001-backend-main-example-task.md")
+	examplePath := filepath.Join(projectDir, "001-main-example-task.md")
 	if _, statErr := os.Stat(examplePath); os.IsNotExist(statErr) {
 		t.Error("example task was not created")
 	}
@@ -199,7 +199,7 @@ func TestMockTaskManagerScan(t *testing.T) {
 	taskContent := `---
 id: TEST-001
 title: Test Task
-role: backend
+workstream: backend
 priority: high
 status: pending
 ---
@@ -227,7 +227,7 @@ Test content
 	}
 }
 
-func TestMockTaskManagerGetByRole(t *testing.T) {
+func TestMockTaskManagerGetByWorkstream(t *testing.T) {
 	// Create temp directory with task files
 	tempDir := t.TempDir()
 	taskDir := filepath.Join(tempDir, "tasks")
@@ -235,51 +235,51 @@ func TestMockTaskManagerGetByRole(t *testing.T) {
 		t.Fatalf("MkdirAll() error: %v", err)
 	}
 
-	// Create backend task
-	backendTask := `---
-id: BE-001
-title: Backend Task
-role: backend
+	// Create api workstream task
+	apiTask := `---
+id: API-001
+title: API Task
+workstream: api
 status: pending
 ---
 
-Backend content
+API content
 `
-	if err := os.WriteFile(filepath.Join(taskDir, "BE-001.md"), []byte(backendTask), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(taskDir, "API-001.md"), []byte(apiTask), 0600); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	// Create frontend task
-	frontendTask := `---
-id: FE-001
-title: Frontend Task
-role: frontend
+	// Create web workstream task
+	webTask := `---
+id: WEB-001
+title: Web Task
+workstream: web
 status: pending
 ---
 
-Frontend content
+Web content
 `
-	if err := os.WriteFile(filepath.Join(taskDir, "FE-001.md"), []byte(frontendTask), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(taskDir, "WEB-001.md"), []byte(webTask), 0600); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	// Scan and filter by role
+	// Scan and filter by workstream
 	mgr := newMockTaskManager(taskDir)
 	_, _ = mgr.Scan()
 
-	backendTasks := mgr.GetByRole("backend")
-	if len(backendTasks) != 1 {
-		t.Errorf("GetByRole(backend) returned %d tasks, want 1", len(backendTasks))
+	apiTasks := mgr.GetByWorkstream("api")
+	if len(apiTasks) != 1 {
+		t.Errorf("GetByWorkstream(api) returned %d tasks, want 1", len(apiTasks))
 	}
 
-	frontendTasks := mgr.GetByRole("frontend")
-	if len(frontendTasks) != 1 {
-		t.Errorf("GetByRole(frontend) returned %d tasks, want 1", len(frontendTasks))
+	webTasks := mgr.GetByWorkstream("web")
+	if len(webTasks) != 1 {
+		t.Errorf("GetByWorkstream(web) returned %d tasks, want 1", len(webTasks))
 	}
 
-	qaTasks := mgr.GetByRole("qa")
-	if len(qaTasks) != 0 {
-		t.Errorf("GetByRole(qa) returned %d tasks, want 0", len(qaTasks))
+	otherTasks := mgr.GetByWorkstream("other")
+	if len(otherTasks) != 0 {
+		t.Errorf("GetByWorkstream(other) returned %d tasks, want 0", len(otherTasks))
 	}
 }
 
@@ -295,7 +295,7 @@ func TestMockTaskManagerIsBlocked(t *testing.T) {
 	t1 := `---
 id: T1
 title: Task 1
-role: backend
+workstream: backend
 status: complete
 ---
 
@@ -309,7 +309,7 @@ Done
 	t2 := `---
 id: T2
 title: Task 2
-role: backend
+workstream: backend
 status: pending
 ---
 
@@ -323,7 +323,7 @@ Pending
 	t3 := `---
 id: T3
 title: Task 3
-role: backend
+workstream: backend
 status: pending
 depends_on:
   - T1
@@ -339,7 +339,7 @@ Depends on T1
 	t4 := `---
 id: T4
 title: Task 4
-role: backend
+workstream: backend
 status: pending
 depends_on:
   - T2
@@ -390,7 +390,7 @@ func TestMockTaskManagerUpdateStatus(t *testing.T) {
 	taskContent := `---
 id: TEST-001
 title: Test Task
-role: backend
+workstream: backend
 status: pending
 ---
 
@@ -437,7 +437,7 @@ func TestMockTaskManagerAssign(t *testing.T) {
 	taskContent := `---
 id: TEST-001
 title: Test Task
-role: backend
+workstream: backend
 status: pending
 ---
 

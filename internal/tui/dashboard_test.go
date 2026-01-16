@@ -72,8 +72,8 @@ func TestNewModel(t *testing.T) {
 	if model.statusFilter != "all" {
 		t.Errorf("expected statusFilter to be 'all', got %s", model.statusFilter)
 	}
-	if model.roleFilter != "all" {
-		t.Errorf("expected roleFilter to be 'all', got %s", model.roleFilter)
+	if model.workstreamFilter != "all" {
+		t.Errorf("expected workstreamFilter to be 'all', got %s", model.workstreamFilter)
 	}
 	if model.maxLogs != 1000 {
 		t.Errorf("expected maxLogs to be 1000, got %d", model.maxLogs)
@@ -306,10 +306,10 @@ func TestModelUpdate_ClearLogs(t *testing.T) {
 func TestModel_FilteredTasks(t *testing.T) {
 	model := NewModel(nil, nil)
 	model.tasks = []*TaskInfo{
-		{ID: "TASK-001", Status: "pending", Role: "backend"},
-		{ID: "TASK-002", Status: "in_progress", Role: "backend"},
-		{ID: "TASK-003", Status: "complete", Role: "frontend"},
-		{ID: "TASK-004", Status: "pending", Role: "frontend"},
+		{ID: "TASK-001", Status: "pending", Workstream: "backend"},
+		{ID: "TASK-002", Status: "in_progress", Workstream: "backend"},
+		{ID: "TASK-003", Status: "complete", Workstream: "frontend"},
+		{ID: "TASK-004", Status: "pending", Workstream: "frontend"},
 	}
 
 	// No filter - all tasks
@@ -325,9 +325,9 @@ func TestModel_FilteredTasks(t *testing.T) {
 		t.Errorf("expected 2 pending tasks, got %d", len(filtered))
 	}
 
-	// Role filter
+	// Workstream filter
 	model.statusFilter = "all"
-	model.roleFilter = "backend"
+	model.workstreamFilter = "backend"
 	filtered = model.filteredTasks()
 	if len(filtered) != 2 {
 		t.Errorf("expected 2 backend tasks, got %d", len(filtered))
@@ -335,7 +335,7 @@ func TestModel_FilteredTasks(t *testing.T) {
 
 	// Combined filter
 	model.statusFilter = "pending"
-	model.roleFilter = "frontend"
+	model.workstreamFilter = "frontend"
 	filtered = model.filteredTasks()
 	if len(filtered) != 1 {
 		t.Errorf("expected 1 pending frontend task, got %d", len(filtered))
@@ -544,8 +544,8 @@ func TestModel_TaskDetailsWithFilter(t *testing.T) {
 	model.height = 40
 	model.activePane = PaneTasks
 	model.tasks = []*TaskInfo{
-		{ID: "TASK-001", Status: "pending", Role: "backend"},
-		{ID: "TASK-002", Status: "in_progress", Role: "frontend"},
+		{ID: "TASK-001", Status: "pending", Workstream: "backend"},
+		{ID: "TASK-002", Status: "in_progress", Workstream: "frontend"},
 	}
 	model.statusFilter = "in_progress"
 

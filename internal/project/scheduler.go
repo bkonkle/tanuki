@@ -15,9 +15,6 @@ type WorkstreamReadiness struct {
 	// Project name (empty for root tasks)
 	Project string
 
-	// Role this workstream belongs to
-	Role string
-
 	// Workstream identifier
 	Workstream string
 
@@ -63,15 +60,15 @@ func (wr *WorkstreamReadiness) ReadinessScore() int {
 
 // Key returns the unique key for this workstream.
 func (wr *WorkstreamReadiness) Key() string {
-	return workstreamKey(wr.Role, wr.Workstream)
+	return wr.Workstream
 }
 
 // DeadlockInfo contains information about a detected deadlock.
 type DeadlockInfo struct {
-	// AffectedRoles lists roles involved in the deadlock
-	AffectedRoles []string
+	// AffectedWorkstreams lists workstreams involved in the deadlock
+	AffectedWorkstreams []string
 
-	// BlockedBy maps each role to the roles it's waiting on
+	// BlockedBy maps each workstream to the workstreams it's waiting on
 	BlockedBy map[string][]string
 
 	// Message is a human-readable description
@@ -92,15 +89,14 @@ type ReadinessAwareScheduler struct {
 	// resolver for dependency checking
 	resolver *task.Resolver
 
-	// roleConcurrency maps role names to their concurrency limits
-	roleConcurrency map[string]int
+	// workstreamConcurrency maps workstream names to their concurrency limits
+	workstreamConcurrency map[string]int
 
 	// activeWorkstreams tracks currently running workstreams
-	// Key: "role:workstream"
 	activeWorkstreams map[string]*WorkstreamReadiness
 
-	// readyQueues holds sorted lists of ready workstreams by role
-	readyQueues map[string][]*WorkstreamReadiness
+	// readyQueue holds sorted list of ready workstreams
+	readyQueue []*WorkstreamReadiness
 
 	// blockedWorkstreams tracks workstreams with no ready tasks
 	blockedWorkstreams map[string]*WorkstreamReadiness
@@ -118,31 +114,31 @@ type ReadinessAwareScheduler struct {
 // NewReadinessAwareScheduler creates a new scheduler with deadlock prevention.
 func NewReadinessAwareScheduler(taskMgr *task.Manager) *ReadinessAwareScheduler {
 	return &ReadinessAwareScheduler{
-		taskMgr:            taskMgr,
-		roleConcurrency:    make(map[string]int),
-		activeWorkstreams:  make(map[string]*WorkstreamReadiness),
-		readyQueues:        make(map[string][]*WorkstreamReadiness),
-		blockedWorkstreams: make(map[string]*WorkstreamReadiness),
-		allWorkstreams:     make(map[string]*WorkstreamReadiness),
-		taskToWorkstream:   make(map[string]string),
+		taskMgr:               taskMgr,
+		workstreamConcurrency: make(map[string]int),
+		activeWorkstreams:     make(map[string]*WorkstreamReadiness),
+		readyQueue:            []*WorkstreamReadiness{},
+		blockedWorkstreams:    make(map[string]*WorkstreamReadiness),
+		allWorkstreams:        make(map[string]*WorkstreamReadiness),
+		taskToWorkstream:      make(map[string]string),
 	}
 }
 
-// SetRoleConcurrency sets the concurrency limit for a role.
-func (s *ReadinessAwareScheduler) SetRoleConcurrency(role string, limit int) {
+// SetWorkstreamConcurrency sets the concurrency limit for a workstream.
+func (s *ReadinessAwareScheduler) SetWorkstreamConcurrency(workstream string, limit int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if limit <= 0 {
 		limit = 1
 	}
-	s.roleConcurrency[role] = limit
+	s.workstreamConcurrency[workstream] = limit
 }
 
-// GetRoleConcurrency returns the concurrency limit for a role.
-func (s *ReadinessAwareScheduler) GetRoleConcurrency(role string) int {
+// GetWorkstreamConcurrency returns the concurrency limit for a workstream.
+func (s *ReadinessAwareScheduler) GetWorkstreamConcurrency(workstream string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if c, ok := s.roleConcurrency[role]; ok {
+	if c, ok := s.workstreamConcurrency[workstream]; ok {
 		return c
 	}
 	return 1
@@ -171,10 +167,9 @@ func (s *ReadinessAwareScheduler) Initialize() error {
 		return fmt.Errorf("dependency cycle detected: %v", cycle)
 	}
 
-	// Group tasks by project/role/workstream
+	// Group tasks by project/workstream
 	type wsKey struct {
 		project    string
-		role       string
 		workstream string
 	}
 	workstreamTasks := make(map[wsKey][]*task.Task)
@@ -182,19 +177,17 @@ func (s *ReadinessAwareScheduler) Initialize() error {
 	for _, t := range tasks {
 		key := wsKey{
 			project:    t.Project,
-			role:       t.Role,
 			workstream: t.GetWorkstream(),
 		}
 		workstreamTasks[key] = append(workstreamTasks[key], t)
 
 		// Map task to workstream
-		wsKeyStr := workstreamKey(t.Role, t.GetWorkstream())
-		s.taskToWorkstream[t.ID] = wsKeyStr
+		s.taskToWorkstream[t.ID] = t.GetWorkstream()
 	}
 
 	// Build readiness info for each workstream
 	for key, wsTasks := range workstreamTasks {
-		readiness := s.computeReadiness(key.project, key.role, key.workstream, wsTasks)
+		readiness := s.computeReadiness(key.project, key.workstream, wsTasks)
 		s.allWorkstreams[readiness.Key()] = readiness
 
 		if readiness.IsReady() {
@@ -211,10 +204,9 @@ func (s *ReadinessAwareScheduler) Initialize() error {
 }
 
 // computeReadiness calculates readiness metrics for a workstream.
-func (s *ReadinessAwareScheduler) computeReadiness(project, role, workstream string, tasks []*task.Task) *WorkstreamReadiness {
+func (s *ReadinessAwareScheduler) computeReadiness(project, workstream string, tasks []*task.Task) *WorkstreamReadiness {
 	readiness := &WorkstreamReadiness{
 		Project:    project,
-		Role:       role,
 		Workstream: workstream,
 	}
 
@@ -269,78 +261,99 @@ func (s *ReadinessAwareScheduler) buildDependentWorkstreams() {
 	}
 }
 
-// addToReadyQueue adds a workstream to the ready queue for its role, maintaining sort order.
+// addToReadyQueue adds a workstream to the ready queue, maintaining sort order.
 func (s *ReadinessAwareScheduler) addToReadyQueue(ws *WorkstreamReadiness) {
-	queue := s.readyQueues[ws.Role]
-	queue = append(queue, ws)
+	s.readyQueue = append(s.readyQueue, ws)
 
 	// Sort by readiness score (descending)
-	sort.Slice(queue, func(i, j int) bool {
-		return queue[i].ReadinessScore() > queue[j].ReadinessScore()
+	sort.Slice(s.readyQueue, func(i, j int) bool {
+		return s.readyQueue[i].ReadinessScore() > s.readyQueue[j].ReadinessScore()
 	})
-
-	s.readyQueues[ws.Role] = queue
 }
 
-// GetNextWorkstream returns the best workstream to spawn for a role.
+// GetNextWorkstream returns the best workstream to spawn.
 // Returns nil if no ready workstreams are available or concurrency limit is reached.
-func (s *ReadinessAwareScheduler) GetNextWorkstream(role string) *WorkstreamReadiness {
+func (s *ReadinessAwareScheduler) GetNextWorkstream(workstream string) *WorkstreamReadiness {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check concurrency limit
-	limit := s.roleConcurrency[role]
+	// Check concurrency limit for this specific workstream
+	limit := s.workstreamConcurrency[workstream]
 	if limit <= 0 {
 		limit = 1
 	}
 
-	activeCount := s.countActiveForRole(role)
+	activeCount := s.countActiveForWorkstream(workstream)
 	if activeCount >= limit {
 		return nil // At capacity
 	}
 
-	// Get ready queue for this role
-	queue := s.readyQueues[role]
-	if len(queue) == 0 {
-		return nil // No ready workstreams
-	}
-
-	// Pop highest priority ready workstream
-	best := queue[0]
-	s.readyQueues[role] = queue[1:]
-
-	return best
-}
-
-// countActiveForRole returns the number of active workstreams for a role.
-func (s *ReadinessAwareScheduler) countActiveForRole(role string) int {
-	count := 0
-	for _, ws := range s.activeWorkstreams {
-		if ws.Role == role {
-			count++
+	// Find the workstream in the ready queue
+	for i, ws := range s.readyQueue {
+		if ws.Workstream == workstream {
+			// Remove from queue
+			s.readyQueue = append(s.readyQueue[:i], s.readyQueue[i+1:]...)
+			return ws
 		}
 	}
-	return count
+
+	return nil // No ready workstream with this name
 }
 
-// ActivateWorkstream marks a workstream as active.
-func (s *ReadinessAwareScheduler) ActivateWorkstream(role, workstream string) {
+// GetNextReadyWorkstream returns the next highest priority ready workstream.
+// Returns nil if no ready workstreams are available.
+func (s *ReadinessAwareScheduler) GetNextReadyWorkstream() *WorkstreamReadiness {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := workstreamKey(role, workstream)
-	if ws, ok := s.allWorkstreams[key]; ok {
-		s.activeWorkstreams[key] = ws
+	if len(s.readyQueue) == 0 {
+		return nil
+	}
+
+	// Find first workstream that hasn't reached its concurrency limit
+	for i, ws := range s.readyQueue {
+		limit := s.workstreamConcurrency[ws.Workstream]
+		if limit <= 0 {
+			limit = 1
+		}
+
+		activeCount := s.countActiveForWorkstream(ws.Workstream)
+		if activeCount < limit {
+			// Remove from queue
+			s.readyQueue = append(s.readyQueue[:i], s.readyQueue[i+1:]...)
+			return ws
+		}
+	}
+
+	return nil // All ready workstreams are at capacity
+}
+
+// countActiveForWorkstream returns the number of active runners for a workstream.
+func (s *ReadinessAwareScheduler) countActiveForWorkstream(workstream string) int {
+	if ws, ok := s.activeWorkstreams[workstream]; ok {
+		if ws != nil {
+			return 1
+		}
+	}
+	return 0
+}
+
+// ActivateWorkstream marks a workstream as active.
+func (s *ReadinessAwareScheduler) ActivateWorkstream(workstream string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if ws, ok := s.allWorkstreams[workstream]; ok {
+		s.activeWorkstreams[workstream] = ws
 	}
 }
 
 // ReleaseWorkstream marks a workstream as no longer active.
-func (s *ReadinessAwareScheduler) ReleaseWorkstream(role, workstream string) {
+func (s *ReadinessAwareScheduler) ReleaseWorkstream(workstream string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := workstreamKey(role, workstream)
-	delete(s.activeWorkstreams, key)
+	delete(s.activeWorkstreams, workstream)
 }
 
 // OnTaskComplete is called when a task finishes execution.
@@ -363,8 +376,8 @@ func (s *ReadinessAwareScheduler) OnTaskComplete(_ string) {
 
 	for key, ws := range s.blockedWorkstreams {
 		// Get tasks for this workstream
-		wsTasks := s.getTasksForWorkstream(tasks, ws.Project, ws.Role, ws.Workstream)
-		newReadiness := s.computeReadiness(ws.Project, ws.Role, ws.Workstream, wsTasks)
+		wsTasks := s.getTasksForWorkstream(tasks, ws.Project, ws.Workstream)
+		newReadiness := s.computeReadiness(ws.Project, ws.Workstream, wsTasks)
 
 		// Update the stored readiness
 		s.allWorkstreams[key] = newReadiness
@@ -377,7 +390,7 @@ func (s *ReadinessAwareScheduler) OnTaskComplete(_ string) {
 		}
 	}
 
-	// Add newly ready workstreams to their queues
+	// Add newly ready workstreams to the queue
 	for _, ws := range newlyReady {
 		s.addToReadyQueue(ws)
 		if s.onWorkstreamReady != nil {
@@ -388,8 +401,8 @@ func (s *ReadinessAwareScheduler) OnTaskComplete(_ string) {
 	// Update active workstreams' readiness info
 	for key := range s.activeWorkstreams {
 		if ws, ok := s.allWorkstreams[key]; ok {
-			wsTasks := s.getTasksForWorkstream(tasks, ws.Project, ws.Role, ws.Workstream)
-			newReadiness := s.computeReadiness(ws.Project, ws.Role, ws.Workstream, wsTasks)
+			wsTasks := s.getTasksForWorkstream(tasks, ws.Project, ws.Workstream)
+			newReadiness := s.computeReadiness(ws.Project, ws.Workstream, wsTasks)
 			s.allWorkstreams[key] = newReadiness
 			s.activeWorkstreams[key] = newReadiness
 		}
@@ -397,10 +410,10 @@ func (s *ReadinessAwareScheduler) OnTaskComplete(_ string) {
 }
 
 // getTasksForWorkstream filters tasks belonging to a specific workstream.
-func (s *ReadinessAwareScheduler) getTasksForWorkstream(tasks []*task.Task, project, role, workstream string) []*task.Task {
+func (s *ReadinessAwareScheduler) getTasksForWorkstream(tasks []*task.Task, project, workstream string) []*task.Task {
 	var result []*task.Task
 	for _, t := range tasks {
-		if t.Project == project && t.Role == role && t.GetWorkstream() == workstream {
+		if t.Project == project && t.GetWorkstream() == workstream {
 			result = append(result, t)
 		}
 	}
@@ -408,12 +421,11 @@ func (s *ReadinessAwareScheduler) getTasksForWorkstream(tasks []*task.Task, proj
 }
 
 // OnWorkstreamComplete is called when all tasks in a workstream finish.
-func (s *ReadinessAwareScheduler) OnWorkstreamComplete(role, workstream string) {
+func (s *ReadinessAwareScheduler) OnWorkstreamComplete(workstream string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := workstreamKey(role, workstream)
-	delete(s.activeWorkstreams, key)
+	delete(s.activeWorkstreams, workstream)
 }
 
 // SetOnWorkstreamReady sets a callback for when a workstream becomes ready.
@@ -423,56 +435,59 @@ func (s *ReadinessAwareScheduler) SetOnWorkstreamReady(fn func(ws *WorkstreamRea
 	s.onWorkstreamReady = fn
 }
 
-// DetectPotentialDeadlock checks for deadlocks caused by cross-role dependencies.
+// DetectPotentialDeadlock checks for deadlocks caused by cross-workstream dependencies.
 // Returns nil if no deadlock is detected.
 func (s *ReadinessAwareScheduler) DetectPotentialDeadlock() *DeadlockInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Check if any role has no ready workstreams but has blocked workstreams
-	rolesWithOnlyBlocked := make(map[string]bool)
-	roleWaitingOn := make(map[string]map[string]bool)
+	// Check if any workstream has no ready tasks but has blocked tasks
+	blockedWorkstreams := make(map[string]bool)
+	wsWaitingOn := make(map[string]map[string]bool)
 
 	for _, ws := range s.blockedWorkstreams {
-		// Check if this role has any ready workstreams
-		hasReady := len(s.readyQueues[ws.Role]) > 0
+		// Check if this workstream has any ready tasks
+		hasReady := false
+		for _, readyWS := range s.readyQueue {
+			if readyWS.Workstream == ws.Workstream {
+				hasReady = true
+				break
+			}
+		}
 		if !hasReady {
-			rolesWithOnlyBlocked[ws.Role] = true
+			blockedWorkstreams[ws.Workstream] = true
 
-			// Track what roles this role is waiting on
-			if roleWaitingOn[ws.Role] == nil {
-				roleWaitingOn[ws.Role] = make(map[string]bool)
+			// Track what workstreams this one is waiting on
+			if wsWaitingOn[ws.Workstream] == nil {
+				wsWaitingOn[ws.Workstream] = make(map[string]bool)
 			}
 
 			for _, blockerKey := range ws.BlockingWorkstreams {
-				if blocker, ok := s.allWorkstreams[blockerKey]; ok {
-					if blocker.Role != ws.Role {
-						roleWaitingOn[ws.Role][blocker.Role] = true
-					}
+				if blockerKey != ws.Workstream {
+					wsWaitingOn[ws.Workstream][blockerKey] = true
 				}
 			}
 		}
 	}
 
-	// Check for circular waiting between roles
-	for role := range rolesWithOnlyBlocked {
-		for waitingOnRole := range roleWaitingOn[role] {
-			if roleWaitingOn[waitingOnRole][role] {
-				// Check if both roles are fully blocked
-				otherHasReady := len(s.readyQueues[waitingOnRole]) > 0
-				if !otherHasReady && rolesWithOnlyBlocked[waitingOnRole] {
+	// Check for circular waiting between workstreams
+	for ws := range blockedWorkstreams {
+		for waitingOnWS := range wsWaitingOn[ws] {
+			if wsWaitingOn[waitingOnWS][ws] {
+				// Check if the other workstream is also fully blocked
+				if blockedWorkstreams[waitingOnWS] {
 					blockedBy := make(map[string][]string)
-					for r, waiting := range roleWaitingOn {
-						for w := range waiting {
-							blockedBy[r] = append(blockedBy[r], w)
+					for w, waiting := range wsWaitingOn {
+						for dep := range waiting {
+							blockedBy[w] = append(blockedBy[w], dep)
 						}
 					}
 
 					return &DeadlockInfo{
-						AffectedRoles: []string{role, waitingOnRole},
-						BlockedBy:     blockedBy,
-						Message:       fmt.Sprintf("Roles %s and %s are mutually blocked", role, waitingOnRole),
-						Suggestion:    "Increase concurrency for one role, or resolve cross-role dependencies first",
+						AffectedWorkstreams: []string{ws, waitingOnWS},
+						BlockedBy:           blockedBy,
+						Message:             fmt.Sprintf("Workstreams %s and %s are mutually blocked", ws, waitingOnWS),
+						Suggestion:          "Increase concurrency for one workstream, or resolve cross-workstream dependencies first",
 					}
 				}
 			}
@@ -482,27 +497,24 @@ func (s *ReadinessAwareScheduler) DetectPotentialDeadlock() *DeadlockInfo {
 	return nil
 }
 
-// GetReadyWorkstreams returns all ready workstreams for a role.
-func (s *ReadinessAwareScheduler) GetReadyWorkstreams(role string) []*WorkstreamReadiness {
+// GetReadyWorkstreams returns all ready workstreams.
+func (s *ReadinessAwareScheduler) GetReadyWorkstreams() []*WorkstreamReadiness {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	queue := s.readyQueues[role]
-	result := make([]*WorkstreamReadiness, len(queue))
-	copy(result, queue)
+	result := make([]*WorkstreamReadiness, len(s.readyQueue))
+	copy(result, s.readyQueue)
 	return result
 }
 
-// GetBlockedWorkstreams returns all blocked workstreams for a role.
-func (s *ReadinessAwareScheduler) GetBlockedWorkstreams(role string) []*WorkstreamReadiness {
+// GetBlockedWorkstreams returns all blocked workstreams.
+func (s *ReadinessAwareScheduler) GetBlockedWorkstreams() []*WorkstreamReadiness {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []*WorkstreamReadiness
+	result := make([]*WorkstreamReadiness, 0, len(s.blockedWorkstreams))
 	for _, ws := range s.blockedWorkstreams {
-		if ws.Role == role {
-			result = append(result, ws)
-		}
+		result = append(result, ws)
 	}
 	return result
 }
@@ -519,22 +531,17 @@ func (s *ReadinessAwareScheduler) GetActiveWorkstreams() []*WorkstreamReadiness 
 	return result
 }
 
-// GetAllRoles returns all roles that have workstreams.
-func (s *ReadinessAwareScheduler) GetAllRoles() []string {
+// GetAllWorkstreams returns all workstreams.
+func (s *ReadinessAwareScheduler) GetAllWorkstreams() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	roleSet := make(map[string]bool)
-	for _, ws := range s.allWorkstreams {
-		roleSet[ws.Role] = true
+	workstreams := make([]string, 0, len(s.allWorkstreams))
+	for ws := range s.allWorkstreams {
+		workstreams = append(workstreams, ws)
 	}
-
-	roles := make([]string, 0, len(roleSet))
-	for role := range roleSet {
-		roles = append(roles, role)
-	}
-	sort.Strings(roles)
-	return roles
+	sort.Strings(workstreams)
+	return workstreams
 }
 
 // appendUnique appends a string to a slice only if it's not already present.

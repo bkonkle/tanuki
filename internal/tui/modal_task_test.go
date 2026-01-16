@@ -7,10 +7,10 @@ import (
 
 func TestNewTaskDetailsModal(t *testing.T) {
 	task := &TaskInfo{
-		ID:     "TASK-001",
-		Title:  "Test Task",
-		Status: "in_progress",
-		Role:   "backend",
+		ID:         "TASK-001",
+		Title:      "Test Task",
+		Status:     "in_progress",
+		Workstream: "backend",
 	}
 
 	modal := NewTaskDetailsModal(task, "", 100, 40)
@@ -44,7 +44,7 @@ func TestTaskDetailsModal_View_WithTask(t *testing.T) {
 		ID:         "TASK-001",
 		Title:      "Test Task",
 		Status:     "in_progress",
-		Role:       "backend",
+		Workstream: "backend",
 		Priority:   "high",
 		AssignedTo: "agent-1",
 	}
@@ -67,9 +67,9 @@ func TestTaskDetailsModal_View_WithTask(t *testing.T) {
 		t.Error("expected view to contain status")
 	}
 
-	// Should contain role
+	// Should contain workstream
 	if !strings.Contains(view, "backend") {
-		t.Error("expected view to contain role")
+		t.Error("expected view to contain workstream")
 	}
 
 	// Should contain priority
@@ -90,10 +90,10 @@ func TestTaskDetailsModal_View_WithTask(t *testing.T) {
 
 func TestTaskDetailsModal_View_NoAssignment(t *testing.T) {
 	task := &TaskInfo{
-		ID:     "TASK-002",
-		Title:  "Unassigned Task",
-		Status: "pending",
-		Role:   "frontend",
+		ID:         "TASK-002",
+		Title:      "Unassigned Task",
+		Status:     "pending",
+		Workstream: "frontend",
 	}
 
 	modal := NewTaskDetailsModal(task, "", 100, 40)
