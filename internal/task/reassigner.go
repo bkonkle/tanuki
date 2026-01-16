@@ -17,7 +17,7 @@ type Reassigner struct {
 
 // QueueInterface defines the methods needed by Reassigner for queue operations.
 type QueueInterface interface {
-	Dequeue(role string) (*Task, error)
+	Dequeue(workstream string) (*Task, error)
 	Enqueue(t *Task) error
 }
 
@@ -28,9 +28,9 @@ type AgentLister interface {
 
 // AgentInfo contains the agent information needed for reassignment.
 type AgentInfo struct {
-	Name   string
-	Role   string
-	Status string // "idle", "working", "stopped"
+	Name       string
+	Workstream string
+	Status     string // "idle", "working", "stopped"
 }
 
 // DependencyChecker checks if a task is blocked by dependencies.
@@ -74,14 +74,14 @@ func (r *Reassigner) checkAndReassign(ctx context.Context) {
 	}
 
 	for _, ag := range agents {
-		if ag.Status != "idle" || ag.Role == "" {
+		if ag.Status != "idle" || ag.Workstream == "" {
 			continue
 		}
 
-		// Try to get next task for this role
-		t, err := r.queue.Dequeue(ag.Role)
+		// Try to get next task for this workstream
+		t, err := r.queue.Dequeue(ag.Workstream)
 		if err != nil {
-			continue // No tasks for this role
+			continue // No tasks for this workstream
 		}
 
 		// Assign and run
@@ -98,11 +98,11 @@ func (r *Reassigner) checkAndReassign(ctx context.Context) {
 
 // OnTaskComplete handles task completion events.
 // Called when a task completes to immediately assign the next task.
-func (r *Reassigner) OnTaskComplete(ctx context.Context, _, agentName, agentRole string) {
+func (r *Reassigner) OnTaskComplete(ctx context.Context, _, agentName, agentWorkstream string) {
 	// Immediately try to assign next task
-	t, err := r.queue.Dequeue(agentRole)
+	t, err := r.queue.Dequeue(agentWorkstream)
 	if err != nil {
-		log.Printf("Agent %s idle, no more tasks for role %s", agentName, agentRole)
+		log.Printf("Agent %s idle, no more tasks for workstream %s", agentName, agentWorkstream)
 		return
 	}
 

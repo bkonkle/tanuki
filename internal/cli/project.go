@@ -13,13 +13,13 @@ var projectCmd = &cobra.Command{
 	Long: `Project mode enables automatic task distribution across multiple agents.
 
 Tasks are defined in the tasks/ directory (configurable via tasks_dir in tanuki.yaml)
-as markdown files with YAML front matter. Each task specifies a role, priority,
+as markdown files with YAML front matter. Each task specifies a workstream, priority,
 dependencies, and completion criteria.
 
 Commands:
   init    - Initialize project task structure
   status  - Show all tasks, agents, and progress
-  start   - Spawn agents by role and assign tasks
+  start   - Spawn agents by workstream and assign tasks
   stop    - Stop all project agents gracefully
   resume  - Resume a stopped project`,
 }

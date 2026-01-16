@@ -18,9 +18,9 @@ Example: "tanuki project init auth-feature" creates:
     README.md                                  # Tasks directory overview
     auth-feature/
       README.md                                # Project context and goals
-      001-backend-main-example-task.md         # Example task file
+      001-main-example-task.md                 # Example task file
 
-Each project is a linear record of tasks that drive role-based agents and
+Each project is a linear record of tasks that drive workstream-based agents and
 document incremental decisions and specifications over time.
 
 The tasks directory location is configurable via tasks_dir in tanuki.yaml

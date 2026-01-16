@@ -70,11 +70,11 @@ func runProjectStop(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// filterProjectAgents returns agents that have roles assigned (project agents).
+// filterProjectAgents returns agents that have workstreams assigned (project agents).
 // func filterProjectAgents(agents []*agent.Agent) []*agent.Agent {
 //     var result []*agent.Agent
 //     for _, ag := range agents {
-//         if ag.Role != "" {
+//         if ag.Workstream != "" {
 //             result = append(result, ag)
 //         }
 //     }

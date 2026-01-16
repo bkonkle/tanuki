@@ -8,15 +8,13 @@ machine.
 %%{init: {"flowchart":{"curve":"basis","nodeSpacing":45,"rankSpacing":40},"theme":"base"}}%%
 flowchart TB
   classDef core fill:#f8fafc,stroke:#0f172a,color:#0f172a,stroke-width:1.5px;
-  classDef role fill:#eef2ff,stroke:#3730a3,color:#0f172a,stroke-width:1.5px;
   classDef queue fill:#ecfeff,stroke:#0f766e,color:#0f172a,stroke-width:1.5px;
   classDef work fill:#fff7ed,stroke:#9a3412,color:#0f172a,stroke-width:1.5px;
 
-  PD[Project Doc]:::core --> TK["Tickets<br/>role + workstream"]:::core
-  RC["Role Config<br/>prompts + concurrency"]:::role --> RQ["Role Queues"]:::queue
-  TK --> RQ
+  PD[Project Doc]:::core --> TK["Tasks<br/>workstream + priority"]:::core
+  TK --> WQ["Workstream Queues"]:::queue
 
-  RQ --> WS["Workstreams<br/>(concurrency-limited)"]:::work
+  WQ --> WS["Workstreams<br/>(concurrency-limited)"]:::work
   WS --> RL["Ralph Loop<br/>pick task -> check context -> execute -> artifacts"]:::core
   RL --> WS
 
@@ -39,9 +37,8 @@ corrupt your repo, or worse. Tanuki solves this by:
 
 - **Isolated Agents** — Each agent gets a dedicated git branch and Docker container
 - **Parallel Execution** — Run multiple Claude Code instances simultaneously
-- **Role System** — Define role-specific prompts and capabilities
-- **Projects + Tickets** — Project doc plus role-tagged tickets drive the workflow
-- **Workstreams** — Concurrency-limited workers per role that pick tasks in order
+- **Workstreams** — Flexible grouping for tasks with per-workstream concurrency and prompts
+- **Projects + Tasks** — Project doc plus workstream-organized tasks drive the workflow
 - **Ralph Loop Execution** — Single execution mode with completion signals and verification
 - **TUI Dashboard** — Interactive terminal interface for monitoring and control
 - **Git Integration** — Automatic worktree management, diff viewing, merge support
@@ -72,8 +69,9 @@ go install github.com/bkonkle/tanuki/cmd/tanuki@latest
 cd your-project
 tanuki init
 
-# Spawn an agent with a role
-tanuki spawn auth --role backend
+# Spawn an agent (optionally with a workstream for config)
+tanuki spawn auth
+tanuki spawn auth --workstream api  # Use workstream-specific config
 
 # Send a task (Ralph loop by default)
 tanuki run auth "Implement OAuth2 login with Google. Say DONE when finished."
@@ -101,15 +99,14 @@ Goals:
 - OAuth2 login with Google
 - JWT-based session management
 
-Roles: backend, frontend, qa
+Workstreams: api, frontend, tests
 EOF
 
 # Create task files in the project folder
-cat > tasks/user-auth/001-backend-api-auth-endpoint.md << 'EOF'
+cat > tasks/user-auth/001-api-auth-endpoint.md << 'EOF'
 ---
 id: user-auth-001
 title: Implement Authentication Endpoint
-role: backend
 workstream: api
 priority: high
 completion:
@@ -132,15 +129,15 @@ tanuki dashboard
 
 ### Agent Management
 
-| Command                             | Description                                |
-| ----------------------------------- | ------------------------------------------ |
-| `tanuki spawn <name>`               | Create a new agent with worktree/container |
-| `tanuki spawn <name> --role <role>` | Create agent with a specific role          |
-| `tanuki list`                       | List all agents and their status           |
-| `tanuki status <name>`              | Show detailed agent status                 |
-| `tanuki stop <name>`                | Stop an agent's container                  |
-| `tanuki start <name>`               | Start a stopped agent                      |
-| `tanuki remove <name>`              | Remove agent completely                    |
+| Command                                     | Description                                    |
+| ------------------------------------------- | ---------------------------------------------- |
+| `tanuki spawn <name>`                       | Create a new agent with worktree/container     |
+| `tanuki spawn <name> --workstream <ws>`     | Create agent with workstream-specific config   |
+| `tanuki list`                               | List all agents and their status               |
+| `tanuki status <name>`                      | Show detailed agent status                     |
+| `tanuki stop <name>`                        | Stop an agent's container                      |
+| `tanuki start <name>`                       | Start a stopped agent                          |
+| `tanuki remove <name>`                      | Remove agent completely                        |
 
 ### Task Execution
 
@@ -172,15 +169,6 @@ tanuki dashboard
 | `tanuki project stop`   | Stop all project workstreams                |
 | `tanuki project resume` | Resume a stopped project                    |
 
-### Role Management
-
-| Command                     | Description                             |
-| --------------------------- | --------------------------------------- |
-| `tanuki role list`          | List available roles                    |
-| `tanuki role show <role>`   | Show role configuration                 |
-| `tanuki role init`          | Create .tanuki/roles/ for customization |
-| `tanuki role create <name>` | Generate a custom role template         |
-
 ### Dashboard Command
 
 | Command            | Description                    |
@@ -191,65 +179,41 @@ tanuki dashboard
 
 Projects define the shared context for a Tanuki run. The workflow is:
 
-Projects -> Roles -> Workstreams -> Tasks
+Projects -> Workstreams -> Tasks
 
 Each project lives in its own folder under `tasks/` (e.g., `tasks/user-auth/`). The project's
-`README.md` captures goals, constraints, and shared context. Tasks are Markdown files tagged with
-a role and a named workstream (e.g., "api", "ui", "auth"). Roles must exist in `tanuki.yaml`,
-which also defines role prompts and workstream concurrency.
+`README.md` captures goals, constraints, and shared context. Tasks are Markdown files organized by
+workstream (e.g., "api", "ui", "auth", "database"). Workstreams can be configured in `tanuki.yaml`
+with custom prompts and concurrency limits.
 
 The tasks directory defaults to `tasks/` but is configurable via `tasks_dir` in `tanuki.yaml`.
 
-## Roles
-
-Tanuki includes six built-in roles optimized for common development tasks. Each role can set its own
-system prompt and concurrency in `tanuki.yaml`.
-
-| Role        | Use Case                            | Example                              |
-| ----------- | ----------------------------------- | ------------------------------------ |
-| `backend`   | Server-side development, APIs, DBs  | `tanuki spawn api --role backend`    |
-| `frontend`  | UI development, components, styling | `tanuki spawn ui --role frontend`    |
-| `qa`        | Testing, QA (can only write tests)  | `tanuki spawn tests --role qa`       |
-| `docs`      | Documentation, guides, READMEs      | `tanuki spawn docs --role docs`      |
-| `devops`    | Infrastructure, CI/CD, deployment   | `tanuki spawn infra --role devops`   |
-| `fullstack` | End-to-end feature development      | `tanuki spawn feat --role fullstack` |
-
-### Custom Roles
-
-Create custom roles in `.tanuki/roles/`:
-
-```bash
-tanuki role init
-tanuki role create my-custom-role
-vim .tanuki/roles/my-custom-role.yaml
-```
-
 ## Workstreams
 
-Workstreams let multiple agents of the same role work in parallel on different feature areas.
-Each workstream has a descriptive name (e.g., "api", "auth", "ui", "database") that indicates
-what aspect of the project it focuses on.
+Workstreams are the primary organizational unit for tasks. They group related tasks that should
+be executed sequentially on the same agent/worktree. Each workstream has a descriptive name
+(e.g., "api", "auth", "ui", "database") that indicates what aspect of the project it focuses on.
 
-For example, if you have five backend tasks across two workstreams (`api` and `database`), you can
-have two backend agents running simultaneously — one focused on API endpoints, another on database
-migrations. Tasks within a workstream run sequentially, but different workstreams run concurrently.
+**Note:** Workstreams are flexible. While discipline-based organization (e.g., "api", "frontend",
+"database") is one approach, workstreams can represent any logical grouping: features, components,
+phases, or any other way you want to organize work.
 
-Each workstream gets its own container and worktree. This gives you parallelism without conflicts —
-agents in separate workstreams can't step on each other's changes.
+Tasks within a workstream run sequentially (preserving context), but different workstreams run
+concurrently (up to the configured concurrency limit). Each workstream gets its own container and
+worktree, so agents in separate workstreams can't step on each other's changes.
 
-Concurrency is configured per role. Setting `concurrency: 3` for the backend role means up to
-three backend workstreams can run at once.
+Concurrency is configured per workstream in `tanuki.yaml`. For example, setting `concurrency: 2`
+for the "api" workstream means up to two agents can work on api tasks simultaneously.
 
 ## Tasks
 
 Tasks are Markdown files with YAML front matter in project folders. File names follow the pattern
-`NNN-role-workstream-description.md` (e.g., `001-backend-api-auth-endpoint.md`):
+`NNN-workstream-description.md` (e.g., `001-api-auth-endpoint.md`):
 
 ```markdown
 ---
 id: user-auth-001
 title: Implement Authentication Endpoint
-role: backend
 workstream: api
 priority: high
 status: pending
@@ -332,20 +296,20 @@ defaults:
   max_turns: 50
   model: claude-haiku-4-5-20251001
 
-roles:
-  backend:
+workstreams:
+  api:
     system_prompt: |
-      You are a backend engineer focused on APIs and data stores.
+      You are working on API development.
       Prefer small, well-tested changes.
-    concurrency: 3
+    concurrency: 2
   frontend:
     system_prompt: |
-      You are a frontend engineer focused on UI and UX.
+      You are working on frontend development.
       Keep changes accessible and responsive.
     concurrency: 2
-  qa:
+  tests:
     system_prompt: |
-      You are a QA engineer. You can only add or change tests.
+      You are focused on testing and quality assurance.
     concurrency: 1
 ```
 

@@ -252,7 +252,7 @@ const (
 type BalancerWithStrategy struct {
 	*Balancer
 	strategy   Strategy
-	roundRobin map[string]int // role -> last index
+	roundRobin map[string]int // workstream -> last index
 	mu         sync.Mutex     // for roundRobin state
 }
 
